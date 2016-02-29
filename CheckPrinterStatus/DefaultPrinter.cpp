@@ -5,7 +5,7 @@ using namespace std;
 
 CDefaultPrinter::CDefaultPrinter()
 {
-	Init();
+	Init2();
 }
 
 CDefaultPrinter::CDefaultPrinter(const wchar_t *name, const wchar_t *iface)
@@ -25,6 +25,8 @@ CDefaultPrinter::~CDefaultPrinter()
 {
 	//delete m_Name;
 	//delete m_Interface;
+	if (INVALID_HANDLE_VALUE != m_hPort)
+		CloseHandle(m_hPort);
 }
 
 const char * CDefaultPrinter::GetStatusCode()
@@ -129,6 +131,133 @@ void CDefaultPrinter::Init()
 	delete szDefaultPrinter;
 	free(pPrinter);
 	
+	if (DEBUG)
+		wcout << "Interface name: " << m_Interface << endl;
+}
+
+void CDefaultPrinter::Init2()
+{
+	// ѕринтер по умолчанию
+	DWORD pcchBuffer;
+	GetDefaultPrinter(NULL, &pcchBuffer);
+	wchar_t *szDefaultPrinter = new wchar_t[pcchBuffer];
+	GetDefaultPrinter(szDefaultPrinter, &pcchBuffer);
+
+	if (DEBUG)
+		wcout << "Default printer: " << szDefaultPrinter << endl;
+
+	HANDLE hPrinter;
+	OpenPrinter(szDefaultPrinter, &hPrinter, NULL);
+
+	PRINTER_INFO_2 *pPrinter;
+	DWORD cbBuf(0), cbNeeded(0);
+	GetPrinter(hPrinter, 2, NULL, cbBuf, &cbNeeded);
+	cbBuf = cbNeeded;
+
+	pPrinter = (PRINTER_INFO_2*)malloc(cbBuf);
+	GetPrinter(hPrinter, 2, (LPBYTE)pPrinter, cbBuf, &cbNeeded);
+	// јдрес? порта принтера
+	//HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\DeviceClasses\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}
+	HKEY	hkResult;
+	HKEY	hkDeviceParameters;
+	HKEY	hkControl;
+	TCHAR	achClass[MAX_PATH] = TEXT("");
+	TCHAR	achKey[REG_MAX_KEY_LENGTH];
+	DWORD	cbName;
+	DWORD	cchClassName = MAX_PATH;
+	DWORD	cSubKeys = 0;
+	DWORD	cbMaxSubKey;
+	DWORD	cchMaxClass;
+	DWORD	cValues;
+	DWORD	cchMaxValue;
+	DWORD	cbMaxValueData;
+	DWORD	cbSecurityDescriptor;
+	FILETIME ftLastWriteTime;
+
+	const TCHAR *szRegDeviceClass = _T("SYSTEM\\CurrentControlSet\\Control\\DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}");
+	TCHAR szRegDeviceParameters[REG_MAX_VALUE_NAME];
+	TCHAR szRegSymbolicLink[REG_MAX_VALUE_NAME];
+	TCHAR szRegControl[REG_MAX_VALUE_NAME];
+	TCHAR szInterface[REG_MAX_VALUE_NAME];
+	VOID *vData;
+	TCHAR szBaseName[REG_MAX_VALUE_NAME];
+	DWORD PortNumber;
+	TCHAR szPort[REG_MAX_VALUE_NAME];
+	DWORD cbData(0);
+	DWORD Type(0);
+
+	BOOL flagExit = FALSE;
+
+	ZeroMemory(szRegDeviceParameters, REG_MAX_VALUE_NAME);
+	ZeroMemory(szRegSymbolicLink, REG_MAX_VALUE_NAME);
+	ZeroMemory(szRegControl, REG_MAX_VALUE_NAME);
+	ZeroMemory(szInterface, REG_MAX_VALUE_NAME);
+	ZeroMemory(szBaseName, REG_MAX_VALUE_NAME);
+	ZeroMemory(szPort, REG_MAX_VALUE_NAME);
+
+	RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegDeviceClass, 0, KEY_READ, &hkResult); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}
+	RegQueryInfoKey(
+		hkResult,				// key handle
+		achClass,               // buffer for class name 
+		&cchClassName,          // size of class string 
+		NULL,                   // reserved 
+		&cSubKeys,              // number of subkeys 
+		&cbMaxSubKey,           // longest subkey size 
+		&cchMaxClass,           // longest class string 
+		&cValues,               // number of values for this key 
+		&cchMaxValue,           // longest value name 
+		&cbMaxValueData,        // longest value data 
+		&cbSecurityDescriptor,  // security descriptor 
+		&ftLastWriteTime		// last write time
+		);
+	int ret(0);
+	for (u_int i = 0; i < cSubKeys, !flagExit; i++)
+	{
+		cbName = REG_MAX_KEY_LENGTH;
+		RegEnumKeyEx(hkResult, i, achKey, &cbName, NULL, NULL, NULL, &ftLastWriteTime);
+
+		wcscpy_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, szRegDeviceClass);
+		wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, _T("\\"));
+		wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, achKey);
+		wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, _T("\\#"));
+		wcscpy_s(szRegSymbolicLink, REG_MAX_VALUE_NAME, szRegDeviceParameters);
+		wcscpy_s(szRegControl, REG_MAX_VALUE_NAME, szRegDeviceParameters);
+		wcscat_s(szRegControl, REG_MAX_VALUE_NAME, _T("\\Control"));
+		wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, _T("\\Device Parameters"));
+
+		RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegDeviceParameters, 0, KEY_READ, &hkDeviceParameters); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
+
+		PortNumber = 0;
+		RegGetValue(HKEY_LOCAL_MACHINE, szRegDeviceParameters, _T("Base Name"), RRF_RT_ANY, NULL, NULL, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
+		vData = (VOID*)malloc(cbData);
+		RegGetValue(HKEY_LOCAL_MACHINE, szRegDeviceParameters, _T("Base Name"), RRF_RT_ANY, NULL, vData, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
+		memcpy(szBaseName, vData, cbData);
+		free(vData);
+		PortNumber = 0;
+		RegGetValue(HKEY_LOCAL_MACHINE, szRegDeviceParameters, _T("Port Number"), RRF_RT_ANY, NULL, &PortNumber, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
+
+		wsprintf(szPort, _T("%s%03d"), szBaseName, PortNumber);
+
+		//if (0 == wcscmp(pPrinter->pPortName, szPort)) // Ќайденный порт совпал с портом принтера по умолчанию, значит нашли то что надо
+		if (PortNumber > 0 	// Ќашли просто какой-то порт, т.к. агент заббикса запускаетс€ не от локального пользовател€ и у него другой принтер по умолчанию (((
+			&& ERROR_SUCCESS == RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegControl, 0, KEY_READ, &hkControl)) // ѕровер€ем, что есть раздел DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Control
+		{
+			RegGetValue(HKEY_LOCAL_MACHINE, szRegSymbolicLink, _T("SymbolicLink"), RRF_RT_ANY, NULL, NULL, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#
+			vData = (VOID*)malloc(cbData);
+			RegGetValue(HKEY_LOCAL_MACHINE, szRegSymbolicLink, _T("SymbolicLink"), RRF_RT_ANY, NULL, vData, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#
+			memcpy(szInterface, vData, cbData);
+			free(vData);
+			flagExit = TRUE;
+		}
+		RegCloseKey(hkDeviceParameters);
+	}
+	RegCloseKey(hkResult);
+
+	size_t len(0);
+	len = sizeof(TCHAR) * (wcslen(szInterface) + 1);
+	m_Interface = new TCHAR[len];
+	wcscpy_s(m_Interface, len, szInterface);
+
 	if (DEBUG)
 		wcout << "Interface name: " << m_Interface << endl;
 }

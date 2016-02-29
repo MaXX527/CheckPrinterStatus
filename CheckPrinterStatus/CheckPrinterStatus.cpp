@@ -6,9 +6,10 @@
 using namespace std;
 
 #define BUFSIZE 65536
-#define TIMEOUT 15		// ќжидать ответ принтера 15с
+#define TIMEOUT 10		// ќжидать ответ принтера 10с
 
 BOOL gFlagExit = FALSE;
+CDefaultPrinter *Printer;
 
 BOOL CtrlHandler(DWORD fdwCtrlType)
 {
@@ -38,7 +39,7 @@ void ResponsePrinter(char *arg)
 		exit(EXIT_SUCCESS);
 	}
 
-	CDefaultPrinter *Printer = new CDefaultPrinter();
+	Printer = new CDefaultPrinter();
 
 	switch (args.find(arg)->second)
 	{
@@ -71,8 +72,17 @@ void Timeout()
 {
 	clock_t end_time = clock() + TIMEOUT * CLOCKS_PER_SEC;
 	while (clock() < end_time) {}
-	cout << "1" << endl;
-	exit(EXIT_FAILURE);
+	//cout << "1" << endl;
+	exit(EXIT_SUCCESS);
+}
+
+void ErrorHandler()
+{
+	clock_t end_time = clock() + (TIMEOUT - 1) * CLOCKS_PER_SEC;
+	while (clock() < end_time) {}
+	if (nullptr != Printer)
+		delete Printer;
+	exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char *argv[])
@@ -118,9 +128,11 @@ int main(int argc, char *argv[])
 
 	thread printer(ResponsePrinter, argv[1]);
 	thread timeout(Timeout);
+	thread errorhandler(ErrorHandler);
 
 	printer.join();
 	timeout.join();
+	errorhandler.join();
 
 	if(DEBUG) system("PAUSE");
 	return 0;

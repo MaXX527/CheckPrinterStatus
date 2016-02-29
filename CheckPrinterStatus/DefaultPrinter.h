@@ -25,6 +25,7 @@ private:
 	BOOL GetData(const char *);
 
 	void Init();
+	void Init2();
 
 public:
 	CDefaultPrinter();
