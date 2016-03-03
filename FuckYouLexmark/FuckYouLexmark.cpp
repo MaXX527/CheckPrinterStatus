@@ -400,6 +400,7 @@ int main()
 	std::locale rus("rus_rus.866");
 	std::wcout.imbue(rus);
 
+	LogFile("================================================================================");
 	LogFile("Старт");
 
 	thread timeout(Timeout);
