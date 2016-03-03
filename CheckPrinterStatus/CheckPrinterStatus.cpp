@@ -126,6 +126,13 @@ int main(int argc, char *argv[])
 		
 	delete Printer;*/
 
+	u_int TonerLeft(0);
+	ifstream left("C:\\Zabbix\\left.txt", ios::in);
+	left >> TonerLeft;
+	left.close();
+	if(0 == TonerLeft)
+		return 0;
+
 	thread printer(ResponsePrinter, argv[1]);
 	thread timeout(Timeout);
 	thread errorhandler(ErrorHandler);

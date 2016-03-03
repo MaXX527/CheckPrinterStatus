@@ -7,22 +7,54 @@ using namespace std;
 
 HANDLE hPort;
 
+void LogFile(const char *msg)
+{
+	time_t rawtime;
+	struct tm timeinfo;
+	char buffer[80];
+
+	time(&rawtime);
+	localtime_s(&timeinfo, &rawtime);
+
+	strftime(buffer, 80, "%Y-%m-%d %H:%M:%S: ", &timeinfo);
+
+	ofstream logfile("C:\\Zabbix\\fyl.log", ios::out | ios::app);
+	logfile << buffer << msg << endl;
+	logfile.close();
+}
+
+void CharToAnsi(wchar_t *pSrc, char *pDst)
+{
+	char pBuf[BUFSIZ];
+	CharToOem(pSrc, pBuf);
+	OemToAnsi(pBuf, pDst);
+}
+
+/*void LogFileW(const wchar_t *msg)
+{
+	time_t rawtime;
+	struct tm timeinfo;
+	wchar_t buffer[80];
+
+	time(&rawtime);
+	localtime_s(&timeinfo, &rawtime);
+
+	wcsftime(buffer, 80, _T("%Y-%m-%d %H:%M:%S: "), &timeinfo);
+	
+	ofstream logfile("C:\\Zabbix\\fyl.log", ios::out | ios::app);
+	logfile << buffer << msg << endl;
+	logfile.close();
+}*/
+
 // Если за время TIMEOUT-1 программа не завершилась, значит произошла какая-то ошибка. Пытаемся закрыть порт и выйти
 void ErrorHandler()
 {
 	clock_t end_time = clock() + (TIMEOUT - 1) * CLOCKS_PER_SEC;
 	while (clock() < end_time) {}
+	LogFile("Аварийное завершение: ErrorHandler()");
 	CloseHandle(hPort);
 	exit(EXIT_SUCCESS);
 }
-
-// Какая-то ошибка. Печатаем 1
-/*void ErrorHandler(const char * code)
-{
-	CloseHandle(hPort);
-	cout << code;
-	exit(EXIT_SUCCESS);
-}*/
 
 // С таких байт начинается обмен сообщениями, на всякий случай тоже их отправим
 void Init()
@@ -44,7 +76,83 @@ void Timeout()
 {
 	clock_t end_time = clock() + TIMEOUT * CLOCKS_PER_SEC;
 	while (clock() < end_time) { }
+	LogFile("Аварийное завершение: Timeout()");
 	exit(EXIT_SUCCESS);
+}
+
+// Отправка в принтер команд PJL
+bool GetData(const char* pCmd)
+{
+	const char *SubStrCODE = "CODE=";
+	const char *SubStrONLINE = "ONLINE=";
+	const char *SubStrDISPLAY = "DISPLAY=";
+	const char *SubStrPAGECOUNT = "PAGECOUNT";
+	char CODE[6] = { 0 };
+	char ONLINE[6] = { 0 };
+	char DISPLAY[256] = { 0 };
+	wchar_t wDISPLAY[256] = { 0 };
+	char PAGECOUNT[16] = { 0 };
+	DWORD Printer_Status_Code = 0;
+
+	DWORD bytesWritten(0), bytesRead(0);
+	char readBuf[BUFSIZ];
+	ZeroMemory(&readBuf, BUFSIZ);
+	int i(0);
+	char *found = { 0 };
+
+	if (!WriteFile(hPort, pCmd, (DWORD)strlen(pCmd), &bytesWritten, NULL)) return false;
+
+	while (ReadFile(hPort, readBuf, BUFSIZ, &bytesRead, NULL))
+	{
+		found = strstr(readBuf, SubStrCODE);
+		if (found)
+		{
+			ZeroMemory(CODE, 5);
+			for (int j = 0; j < 5; j++)
+				CODE[j] = found[j + 5];
+		}
+
+		found = strstr(readBuf, SubStrONLINE);
+		if (found)
+		{
+			ZeroMemory(&ONLINE, 6);
+			if (found[7] == 'T')
+				strcpy_s(ONLINE, 6, "TRUE");
+			else
+				strcpy_s(ONLINE, 6, "FALSE");
+		}
+		found = strstr(readBuf, SubStrDISPLAY);
+		if (found)
+		{
+			ZeroMemory(&DISPLAY, 256);
+			int j(0);
+			while (found[j + 9] != '"')
+				DISPLAY[j++] = found[j + 9];
+			int output_size = MultiByteToWideChar(CP_UTF8, 0, DISPLAY, -1, NULL, 0);
+			int size = MultiByteToWideChar(CP_UTF8, 0, DISPLAY, -1, wDISPLAY, output_size);
+		}
+		found = strstr(readBuf, SubStrPAGECOUNT);
+		if (found)
+		{
+			ZeroMemory(PAGECOUNT, 16);
+			int j(0);
+			while (found[j + 11] != '\r')
+				PAGECOUNT[j++] = found[j + 11];
+		}
+
+		if (0x0a == (unsigned short)readBuf[bytesRead - 2] && 0x0c == (unsigned short)readBuf[bytesRead - 1]) break; // Конец сообщения
+		ZeroMemory(&readBuf, BUFSIZ);
+	}
+	LogFile("GetData()");
+
+	if (strlen(PAGECOUNT) > 0)
+	{
+		ofstream pc("C:\\Zabbix\\pc.txt", ios::out | ios::trunc);
+		pc << PAGECOUNT;
+		pc.close();
+		LogFile("Файл pc.txt записан");
+	}
+	return true;
 }
 
 // Самое интересное - пытаемся узнать, на сколько страниц осталось тонера в картридже
@@ -66,6 +174,18 @@ void GetTonerLeft()
 
 	pPrinter = (PRINTER_INFO_2*)malloc(cbBuf);
 	GetPrinter(hPrinter, 2, (LPBYTE)pPrinter, cbBuf, &cbNeeded);
+
+	// Если статус принтера не 0, лучше его не трогать. 0 по идее означает готов
+	if (pPrinter->Status != 0) ErrorHandler();
+
+	char szBuf[BUFSIZ];
+	ZeroMemory(szBuf, BUFSIZ);
+	CharToAnsi(szDefaultPrinter, szBuf);
+	LogFile(szBuf);
+	ZeroMemory(szBuf, BUFSIZ);
+	_itoa_s(pPrinter->Status, szBuf, BUFSIZ, 10);
+	LogFile(szBuf);
+
 	// Адрес? порта принтера
 	//HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\DeviceClasses\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}
 	HKEY	hkResult;
@@ -163,6 +283,11 @@ void GetTonerLeft()
 	}
 	RegCloseKey(hkResult);
 
+	char *pDst = new char[wcslen(szInterface) + 1];
+	CharToOem(szInterface, pDst);
+	LogFile(pDst);
+	delete pDst;
+
 	// Вот такие байты отсылает утилита Lexmark, чтобы получить данные от МФУ. Что они означают - полное ХЗ
 	//byte b0[] = { 0xA5, 0x00, 0x07, 0x50, 0xE0, 0xD9, 0x00, 0x0E, 0x0E, 0x04 };
 
@@ -175,6 +300,8 @@ void GetTonerLeft()
 	if (INVALID_HANDLE_VALUE == hPort) ErrorHandler();
 
 	//Init();
+
+	// Получение остатка тонера
 
 	DWORD BytesWritten;
 	DWORD BytesRead;
@@ -240,24 +367,40 @@ void GetTonerLeft()
 		}
 	}
 
-	CloseHandle(hPort);
-	
 	if (Pi.Capacity > 0) // Что-то узнали
 	{
-		cout << Pi.Percent * Pi.Capacity / 100;
-		//ofstream left("left.txt", ios::out | ios::trunc);
-		//left << Pi.Percent * Pi.Capacity / 100;
-		//left.close();
+		//cout << Pi.Percent * Pi.Capacity / 100;
+		ofstream left("C:\\Zabbix\\left.txt", ios::out | ios::trunc);
+		left << Pi.Percent * Pi.Capacity / 100;
+		left.close();
+		LogFile("Файл left.txt записан");
 		//system("PAUSE");
-		exit(EXIT_SUCCESS);
+		//exit(EXIT_SUCCESS);
 	}
+
+	// Получение счетчика страниц PAGECOUNT
+	const char *CmdID = "\x1B%-12345X@PJL\r\n@PJL INFO ID\r\n\x1B%-12345X\r\n";
+	const char *CmdPageCount = "\x1B%-12345X@PJL\r\n@PJL INFO PAGECOUNT\r\n\x1B%-12345X\r\n";
+	const char *CmdStatus = "\x1B%-12345X@PJL\r\n@PJL INFO STATUS\r\n\x1B%-12345X\r\n";
+
+	if (!GetData(CmdID)) ErrorHandler();
+	Sleep(2000);
+	if (!GetData(CmdPageCount)) ErrorHandler();
+
 	//system("PAUSE");
+	free(pPrinter);
+	CloseHandle(hPort);
+
+	LogFile("Стоп GetTonerLeft()");
+	exit(EXIT_SUCCESS);
 }
 
 int main()
 {
 	std::locale rus("rus_rus.866");
 	std::wcout.imbue(rus);
+
+	LogFile("Старт");
 
 	thread timeout(Timeout);
 	thread printer(GetTonerLeft);
@@ -266,6 +409,8 @@ int main()
 	errorhandler.join();
 	timeout.join();
 	printer.join();
+
+	LogFile("Стоп main()");
 
 	return 0;
 }
