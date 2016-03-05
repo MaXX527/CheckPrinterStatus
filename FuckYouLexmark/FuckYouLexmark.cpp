@@ -50,7 +50,7 @@ void CharToAnsi(wchar_t *pSrc, char *pDst)
 void ErrorHandler()
 {
 	clock_t end_time = clock() + (TIMEOUT - 1) * CLOCKS_PER_SEC;
-	while (clock() < end_time) {}
+	while (clock() < end_time) { Sleep(100); }
 	LogFile("Аварийное завершение: ErrorHandler()");
 	CloseHandle(hPort);
 	exit(EXIT_SUCCESS);
@@ -75,7 +75,7 @@ void Init()
 void Timeout()
 {
 	clock_t end_time = clock() + TIMEOUT * CLOCKS_PER_SEC;
-	while (clock() < end_time) { }
+	while (clock() < end_time) { Sleep(100); }
 	LogFile("Аварийное завершение: Timeout()");
 	exit(EXIT_SUCCESS);
 }
