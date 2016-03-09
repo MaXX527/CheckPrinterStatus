@@ -18,7 +18,7 @@ void LogFile(const char *msg)
 
 	strftime(buffer, 80, "%Y-%m-%d %H:%M:%S: ", &timeinfo);
 
-	ofstream logfile("C:\\Zabbix\\fyl.log", ios::out | ios::app);
+	ofstream logfile("C:\\Zabbix\\log\\fyl.log", ios::out | ios::app);
 	logfile << buffer << msg << endl;
 	logfile.close();
 }
@@ -41,7 +41,7 @@ void CharToAnsi(wchar_t *pSrc, char *pDst)
 
 	wcsftime(buffer, 80, _T("%Y-%m-%d %H:%M:%S: "), &timeinfo);
 	
-	ofstream logfile("C:\\Zabbix\\fyl.log", ios::out | ios::app);
+	ofstream logfile("C:\\Zabbix\\log\\fyl.log", ios::out | ios::app);
 	logfile << buffer << msg << endl;
 	logfile.close();
 }*/
@@ -147,7 +147,7 @@ bool GetData(const char* pCmd)
 
 	if (strlen(PAGECOUNT) > 0)
 	{
-		ofstream pc("C:\\Zabbix\\pc.txt", ios::out | ios::trunc);
+		ofstream pc("C:\\Zabbix\\log\\pc.txt", ios::out | ios::trunc);
 		pc << PAGECOUNT;
 		pc.close();
 		LogFile("Файл pc.txt записан");
@@ -340,6 +340,13 @@ void GetTonerLeft()
 		//wcout << BytesRead << " " << CountA5 << endl;
 	}
 
+	// Записываем все муть, пришедшую с принтера, в файл log\answer.bin для последующего анализа
+	ofstream answerbin("C:\\Zabbix\\log\\answer.bin", ios::out | ios::trunc | ios::binary);
+	for (u_int i = 0; i < AllCount; i++)
+		answerbin.put(AllAnswer[i]);
+	answerbin.close();
+	LogFile("Файл answer.bin записан");
+
 	// Ищем строку "Black Toner" в ответе, рядом будут серийный номер картриджа, емкость и остаток тонера в %
 	const size_t BlackTonerLen = 11;
 	byte BlackToner[] = { 0x42, 0x6c, 0x61, 0x63, 0x6b, 0x20, 0x54, 0x6f, 0x6e, 0x65, 0x72 };
@@ -370,7 +377,7 @@ void GetTonerLeft()
 	if (Pi.Capacity > 0) // Что-то узнали
 	{
 		//cout << Pi.Percent * Pi.Capacity / 100;
-		ofstream left("C:\\Zabbix\\left.txt", ios::out | ios::trunc);
+		ofstream left("C:\\Zabbix\\log\\left.txt", ios::out | ios::trunc);
 		left << Pi.Percent * Pi.Capacity / 100;
 		left.close();
 		LogFile("Файл left.txt записан");
