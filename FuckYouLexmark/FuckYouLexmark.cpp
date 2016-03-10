@@ -213,6 +213,7 @@ void GetTonerLeft()
 	TCHAR szBaseName[REG_MAX_VALUE_NAME];
 	DWORD PortNumber;
 	TCHAR szPort[REG_MAX_VALUE_NAME];
+	char szPortA[REG_MAX_VALUE_NAME];
 	DWORD cbData(0);
 	DWORD Type(0);
 
@@ -268,9 +269,11 @@ void GetTonerLeft()
 
 		wsprintf(szPort, _T("%s%03d"), szBaseName, PortNumber);
 
-		//if (0 == wcscmp(pPrinter->pPortName, szPort)) // Ќайденный порт совпал с портом принтера по умолчанию, значит нашли то что надо
-		if(PortNumber > 0 	// Ќашли просто какой-то порт, т.к. агент заббикса запускаетс€ не от локального пользовател€ и у него другой принтер по умолчанию (((
-			&& ERROR_SUCCESS == RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegControl, 0, KEY_READ, &hkControl)) // ѕровер€ем, что есть раздел DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Control
+		//if(PortNumber > 0 	// Ќашли просто какой-то порт, т.к. агент заббикса запускаетс€ не от локального пользовател€ и у него другой принтер по умолчанию (((
+		//	&& ERROR_SUCCESS == RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegControl, 0, KEY_READ, &hkControl)) // ѕровер€ем, что есть раздел DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Control
+		
+		// ѕоиск порта подходит, если запускаемс€ от локального пользовател€. ≈сли от админа или system - надо провер€ть значение \\#\Control\Linked == 1
+		if (0 == wcscmp(pPrinter->pPortName, szPort)) // Ќайденный порт совпал с портом принтера по умолчанию, значит нашли то что надо
 		{
 			RegGetValue(HKEY_LOCAL_MACHINE, szRegSymbolicLink, _T("SymbolicLink"), RRF_RT_ANY, NULL, NULL, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#
 			vData = (VOID*)malloc(cbData);
@@ -278,6 +281,8 @@ void GetTonerLeft()
 			memcpy(szInterface, vData, cbData);
 			free(vData);
 			flagExit = TRUE;
+			CharToOem(szPort, szPortA);
+			LogFile(szPortA);
 		}
 		RegCloseKey(hkDeviceParameters);
 	}
@@ -293,6 +298,7 @@ void GetTonerLeft()
 
 	const byte b1[] = { 0xA5, 0x00, 0x10, 0x80, 0xA4, 0x5B, 0xA4, 0x5B, 0x10, 0xEF, 0xA4, 0x5B, 0x11, 0xEE, 0x00, 0xFF, 0x13, 0xEC, 0x2E };
 	const byte b2[] = { 0xA5, 0x00, 0x07, 0x50, 0xE0, 0x21, 0x01, 0x00, 0x00, 0x00 };
+	//const byte b2[] = { 0xA5, 0x00, 0x04, 0x50, 0xE0, 0xE7, 0x02 };
 
 	//wcout << szInterface << endl;
 
@@ -326,16 +332,26 @@ void GetTonerLeft()
 
 	u_int TonerPercent(0);
 
-	while (ReadFile(hPort, answer, BUFSIZE, &BytesRead, NULL))
+	// ¬ каждом пакете байт 3 - это флаг. ≈сли бит 5 установлен в 1, то будет еще один пакет.
+	// “.о. если п€тый бит во флаге сброшен, это конец передачи
+	const u_int flagContinue = 1 << 5;
+	byte Flag(flagContinue);
+
+	while ((Flag & flagContinue))
 	{
+		ReadFile(hPort, answer, BUFSIZE, &BytesRead, NULL);
 		for (size_t i = 0; i < BytesRead; i++)
 		{
 			AllAnswer[AllCount++] = answer[i];
 			if (0xa5 == answer[i]) CountA5++;
 		}
 
+		Flag = answer[3];
+
+		//if (!(Flag & flagContinue)) break;
+
 		//if ((BytesRead > 0) && (0x2c == answer[BytesRead - 1])) break;	// ѕоследний байт в ответе обычно 0x2c
-		if (47 == CountA5) break;										// ƒл€ страховки провер€ем количество пакетов
+		//if (47 == CountA5) break;										// ƒл€ страховки провер€ем количество пакетов
 		//if (0 == BytesRead) break;										// ѕрочитано 0 байт, наверное хватит
 		//wcout << BytesRead << " " << CountA5 << endl;
 	}
