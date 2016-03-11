@@ -155,6 +155,12 @@ bool GetData(const char* pCmd)
 	return true;
 }
 
+// Получает целое число из четырех байт в массиве AllAnswer
+int GetIntFromAllAnswer(const byte b[], const u_int s)
+{
+	return ((u_int)b[s] << 8 * 3) + ((u_int)b[s + 1] << 8 * 2) + ((u_int)b[s + 2] << 8) + (u_int)b[s + 3];
+}
+
 // Самое интересное - пытаемся узнать, на сколько страниц осталось тонера в картридже
 void GetTonerLeft()
 {
@@ -342,8 +348,13 @@ void GetTonerLeft()
 		ReadFile(hPort, answer, BUFSIZE, &BytesRead, NULL);
 		for (size_t i = 0; i < BytesRead; i++)
 		{
-			AllAnswer[AllCount++] = answer[i];
-			if (0xa5 == answer[i]) CountA5++;
+			if (0xa5 == answer[i])
+			{
+				CountA5++;
+				i += 4;
+			}
+			else
+				AllAnswer[AllCount++] = answer[i];
 		}
 
 		Flag = answer[3];
@@ -363,14 +374,14 @@ void GetTonerLeft()
 	answerbin.close();
 	LogFile("Файл answer.bin записан");
 
+	PrinterInfo Pi;
+	ZeroMemory(&Pi, sizeof PrinterInfo);
+
 	// Ищем строку "Black Toner" в ответе, рядом будут серийный номер картриджа, емкость и остаток тонера в %
 	const size_t BlackTonerLen = 11;
 	byte BlackToner[] = { 0x42, 0x6c, 0x61, 0x63, 0x6b, 0x20, 0x54, 0x6f, 0x6e, 0x65, 0x72 };
 	const size_t BlackTonerSNLen = 13;
 	char BlackTonerSN[BlackTonerSNLen];
-
-	PrinterInfo Pi;
-	ZeroMemory(&Pi, sizeof PrinterInfo);
 
 	for (u_int i = 0; i < AllCount - BlackTonerLen; i++)
 	{
@@ -381,11 +392,35 @@ void GetTonerLeft()
 				memcpy(Pi.cSn, AllAnswer + i + j + 16, BlackTonerSNLen - 1);
 				BlackTonerSN[BlackTonerSNLen - 1] = '\0';
 
-				Pi.cPercent = static_cast<u_int>(AllAnswer[i + 91]);
+				Pi.cPercent = GetIntFromAllAnswer(AllAnswer, i + 83); //((u_int)AllAnswer[i + 83] << 8 * 3) + ((u_int)AllAnswer[i + 84] << 8 * 2) + ((u_int)AllAnswer[i + 85] << 8) + (u_int)AllAnswer[i + 86];
 
-				Pi.cCapacity = (((u_int)AllAnswer[i + 44] << 8) + (u_int)AllAnswer[i + 45]);
+				Pi.cCapacity = GetIntFromAllAnswer(AllAnswer, i + 42); //((u_int)AllAnswer[i + 42] << 8*3) + ((u_int)AllAnswer[i + 43] << 8*2) + ((u_int)AllAnswer[i + 44] << 8) + (u_int)AllAnswer[i + 45];
 			}
 			if (AllAnswer[i + j] != BlackToner[j])
+				break;
+		}
+	}
+
+	// Ищем строку "Imaging Unit" в ответе, рядом будут серийный номер юнита, емкость и остаток ресурса в %
+	const size_t ImagingUnitLen = 12;
+	byte ImagingUnit[] = { 0x49, 0x6d, 0x61, 0x67, 0x69, 0x6e, 0x67, 0x20, 0x55, 0x6e, 0x69, 0x74 };
+	const size_t ImagingUnitSNLen = 13;
+	char ImagingUnitSN[ImagingUnitSNLen];
+
+	for (u_int i = 0; i < AllCount - ImagingUnitLen; i++)
+	{
+		for (u_int j = 0; j < ImagingUnitLen; j++)
+		{
+			if (j == ImagingUnitLen - 1) // Нашли строку
+			{
+				memcpy(Pi.iuSn, AllAnswer + i + j + 5, ImagingUnitSNLen - 1);
+				ImagingUnitSN[ImagingUnitSNLen - 1] = '\0';
+
+				Pi.iuPercent = GetIntFromAllAnswer(AllAnswer, i + 73); //((u_int)AllAnswer[i + 73] << 8 * 3) + ((u_int)AllAnswer[i + 74] << 8 * 2) + ((u_int)AllAnswer[i + 75] << 8) + ((u_int)AllAnswer[i + 76]);
+
+				Pi.iuResource = GetIntFromAllAnswer(AllAnswer, i + 32); //((u_int)AllAnswer[i + 32] << 8 * 3) + ((u_int)AllAnswer[i + 33] << 8 * 2) + ((u_int)AllAnswer[i + 34] << 8) + ((u_int)AllAnswer[i + 35]);
+			}
+			if (AllAnswer[i + j] != ImagingUnit[j])
 				break;
 		}
 	}
@@ -403,19 +438,21 @@ void GetTonerLeft()
 
 	///////////////////////////////////////////////////////////////////////////////////////////////
 	// Получение данных от принтера. Надеемся, что нужные сведения всегда с одинаковыми адресами ((
-	memcpy(Pi.Sn,  AllAnswer +  85, 0x0d);
-	memcpy(Pi.Fw,  AllAnswer + 283, 0x0d);
-	memcpy(Pi.cSn, AllAnswer + 991, 0x0c);
-	Pi.cCapacity  = ((u_int)AllAnswer[0x3ef] << 8 * 3) + ((u_int)AllAnswer[0x3f0] << 8 * 2) + ((u_int)AllAnswer[0x3f1] << 8 * 1) + ((u_int)AllAnswer[0x3f2]);
-	Pi.cPercent   = ((u_int)AllAnswer[0x41d] << 8 * 3) + ((u_int)AllAnswer[0x41e] << 8 * 2) + ((u_int)AllAnswer[0x41f] << 8 * 1) + ((u_int)AllAnswer[0x420]);
-	memcpy(Pi.iuSn, AllAnswer + 0x45b, 0x0c);
-	Pi.iuResource = ((u_int)AllAnswer[0x46b] << 8 * 3) + ((u_int)AllAnswer[0x46c] << 8 * 2) + ((u_int)AllAnswer[0x46d] << 8 * 1) + ((u_int)AllAnswer[0x46e]);
-	Pi.iuPercent  = ((u_int)AllAnswer[0x499] << 8 * 3) + ((u_int)AllAnswer[0x49a] << 8 * 2) + ((u_int)AllAnswer[0x49b] << 8 * 1) + ((u_int)AllAnswer[0x49c]);
+	// Надежды не оправдались, адреса всегда меняются
+	memcpy(Pi.Sn,  AllAnswer +  75, 0x0d);
+	memcpy(Pi.Fw,  AllAnswer + 258, 0x0d);
+	//memcpy(Pi.cSn, AllAnswer + 911, 0x0c);
+	//Pi.cCapacity  = ((u_int)AllAnswer[0x39f] << 8 * 3) + ((u_int)AllAnswer[0x3a0] << 8 * 2) + ((u_int)AllAnswer[0x3a1] << 8 * 1) + ((u_int)AllAnswer[0x3a2]);
+	//memcpy(&Pi.cCapacity, AllAnswer + 0x39f, 4);
+	//Pi.cPercent   = ((u_int)AllAnswer[0x3c8] << 8 * 3) + ((u_int)AllAnswer[0x3c9] << 8 * 2) + ((u_int)AllAnswer[0x3ca] << 8 * 1) + ((u_int)AllAnswer[0x3cb]);
+	//memcpy(Pi.iuSn, AllAnswer + 0x401, 0x0c);
+	//Pi.iuResource = ((u_int)AllAnswer[0x411] << 8 * 3) + ((u_int)AllAnswer[0x412] << 8 * 2) + ((u_int)AllAnswer[0x413] << 8 * 1) + ((u_int)AllAnswer[0x414]);
+	//Pi.iuPercent  = ((u_int)AllAnswer[0x43a] << 8 * 3) + ((u_int)AllAnswer[0x43b] << 8 * 2) + ((u_int)AllAnswer[0x43c] << 8 * 1) + ((u_int)AllAnswer[0x43d]);
 
 	ofstream answertxt("C:\\Zabbix\\log\\answer.txt", ios::out | ios::trunc);
-	answertxt << "mfusn\t" << Pi.Sn << endl << "mfufw\t" << Pi.Fw << endl
-		<< "carsn\t" << Pi.cSn << endl << "carres\t" << Pi.cCapacity << endl << "carleft\t" << Pi.cPercent << endl
-		<< "iusn\t" << Pi.iuSn << endl << "iures\t" << Pi.iuResource << endl << "iuleft\t" << Pi.iuPercent;
+	answertxt << "mfusn\t" << Pi.Sn   << endl << "mfufw\t"  << Pi.Fw         << endl
+		      << "carsn\t" << Pi.cSn  << endl << "carres\t" << Pi.cCapacity  << endl << "carleft\t" << Pi.cPercent << endl
+		      << "iusn\t"  << Pi.iuSn << endl << "iures\t"  << Pi.iuResource << endl << "iuleft\t"  << Pi.iuPercent;
 	answertxt.close();
 	LogFile("Файл answer.txt записан");
 	///////////////////////////////////////////////////////////////////////////////////////////////
