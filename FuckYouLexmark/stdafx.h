@@ -22,9 +22,14 @@
 
 struct PrinterInfo
 {
-	char Sn[13];
-	u_int Percent;
-	u_int Capacity;
+	char  Sn[0x0d+1];		// sn принтера
+	char  Fw[0x0d+1];		// версия прошивки
+	char  cSn[0x0c+1];	// sn картриджа
+	u_int cPercent;		// остаток тонера в %
+	u_int cCapacity;	// ресурс картриджа
+	char  iuSn[0x0c+1];	// sn Imaging Unit
+	u_int iuPercent;	// остаток ресурса Imaging Unit в %
+	u_int iuResource;	// ресурс Imaging Unit
 };
 
 #define REG_MAX_KEY_LENGTH 255

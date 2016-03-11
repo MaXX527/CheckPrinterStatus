@@ -190,7 +190,7 @@ void GetTonerLeft()
 	//HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\DeviceClasses\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}
 	HKEY	hkResult;
 	HKEY	hkDeviceParameters;
-	HKEY	hkControl;
+	//HKEY	hkControl;
 	TCHAR	achClass[MAX_PATH] = TEXT("");
 	TCHAR	achKey[REG_MAX_KEY_LENGTH];
 	DWORD	cbName;
@@ -378,36 +378,55 @@ void GetTonerLeft()
 		{
 			if (j == BlackTonerLen - 1) // Нашли строку
 			{
-				memcpy(Pi.Sn, AllAnswer + i + j + 16, BlackTonerSNLen - 1);
+				memcpy(Pi.cSn, AllAnswer + i + j + 16, BlackTonerSNLen - 1);
 				BlackTonerSN[BlackTonerSNLen - 1] = '\0';
 
-				Pi.Percent = static_cast<u_int>(AllAnswer[i + 91]);
+				Pi.cPercent = static_cast<u_int>(AllAnswer[i + 91]);
 
-				Pi.Capacity = (((u_int)AllAnswer[i + 44] << 8) + (u_int)AllAnswer[i + 45]);
+				Pi.cCapacity = (((u_int)AllAnswer[i + 44] << 8) + (u_int)AllAnswer[i + 45]);
 			}
 			if (AllAnswer[i + j] != BlackToner[j])
 				break;
 		}
 	}
 
-	if (Pi.Capacity > 0) // Что-то узнали
+	if (Pi.cCapacity > 0) // Что-то узнали
 	{
 		//cout << Pi.Percent * Pi.Capacity / 100;
 		ofstream left("C:\\Zabbix\\log\\left.txt", ios::out | ios::trunc);
-		left << Pi.Percent * Pi.Capacity / 100;
+		left << Pi.cPercent * Pi.cCapacity / 100;
 		left.close();
 		LogFile("Файл left.txt записан");
 		//system("PAUSE");
 		//exit(EXIT_SUCCESS);
 	}
 
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	// Получение данных от принтера. Надеемся, что нужные сведения всегда с одинаковыми адресами ((
+	memcpy(Pi.Sn,  AllAnswer +  85, 0x0d);
+	memcpy(Pi.Fw,  AllAnswer + 283, 0x0d);
+	memcpy(Pi.cSn, AllAnswer + 991, 0x0c);
+	Pi.cCapacity  = ((u_int)AllAnswer[0x3ef] << 8 * 3) + ((u_int)AllAnswer[0x3f0] << 8 * 2) + ((u_int)AllAnswer[0x3f1] << 8 * 1) + ((u_int)AllAnswer[0x3f2]);
+	Pi.cPercent   = ((u_int)AllAnswer[0x41d] << 8 * 3) + ((u_int)AllAnswer[0x41e] << 8 * 2) + ((u_int)AllAnswer[0x41f] << 8 * 1) + ((u_int)AllAnswer[0x420]);
+	memcpy(Pi.iuSn, AllAnswer + 0x45b, 0x0c);
+	Pi.iuResource = ((u_int)AllAnswer[0x46b] << 8 * 3) + ((u_int)AllAnswer[0x46c] << 8 * 2) + ((u_int)AllAnswer[0x46d] << 8 * 1) + ((u_int)AllAnswer[0x46e]);
+	Pi.iuPercent  = ((u_int)AllAnswer[0x499] << 8 * 3) + ((u_int)AllAnswer[0x49a] << 8 * 2) + ((u_int)AllAnswer[0x49b] << 8 * 1) + ((u_int)AllAnswer[0x49c]);
+
+	ofstream answertxt("C:\\Zabbix\\log\\answer.txt", ios::out | ios::trunc);
+	answertxt << "mfusn\t" << Pi.Sn << endl << "mfufw\t" << Pi.Fw << endl
+		<< "carsn\t" << Pi.cSn << endl << "carres\t" << Pi.cCapacity << endl << "carleft\t" << Pi.cPercent << endl
+		<< "iusn\t" << Pi.iuSn << endl << "iures\t" << Pi.iuResource << endl << "iuleft\t" << Pi.iuPercent;
+	answertxt.close();
+	LogFile("Файл answer.txt записан");
+	///////////////////////////////////////////////////////////////////////////////////////////////
+
 	// Получение счетчика страниц PAGECOUNT
 	const char *CmdID = "\x1B%-12345X@PJL\r\n@PJL INFO ID\r\n\x1B%-12345X\r\n";
 	const char *CmdPageCount = "\x1B%-12345X@PJL\r\n@PJL INFO PAGECOUNT\r\n\x1B%-12345X\r\n";
 	const char *CmdStatus = "\x1B%-12345X@PJL\r\n@PJL INFO STATUS\r\n\x1B%-12345X\r\n";
 
-	if (!GetData(CmdID)) ErrorHandler();
-	Sleep(2000);
+	if (!GetData(CmdID)) ErrorHandler();	// Запрос ID чтобы разбудить принтер, если он спит
+	Sleep(2000);							// Пауза чтобы принтер успел проснуться
 	if (!GetData(CmdPageCount)) ErrorHandler();
 
 	//system("PAUSE");
