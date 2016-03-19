@@ -13,7 +13,7 @@
 
 #define VERSION_MAJOR               0
 #define VERSION_MINOR               1
-#define VERSION_REVISION            4
+#define VERSION_REVISION            5
 #define VERSION_BUILD               0
 
 #define VER_FILE_DESCRIPTION_STR    "Получение данных от МФУ Lexmark MX310dn"

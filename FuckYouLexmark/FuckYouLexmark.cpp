@@ -374,8 +374,42 @@ void GetTonerLeft()
 	answerbin.close();
 	LogFile("‘айл answer.bin записан");
 
+	if (AllCount < 0x40)	// ≈сли ответ слишком короткий, выходим. ¬се равно ничего полезного там нет
+	{
+		LogFile("ќтвет меньше 0x40 байт ((");
+		ErrorHandler();
+	}
+
 	PrinterInfo Pi;
 	ZeroMemory(&Pi, sizeof PrinterInfo);
+
+	// »щем "Lexmark MX310 Series", р€дом серийный номер принтера и верси€ прошивки
+	// Ќа самом деле таких строк м.б. больше одной, поэтому дополнительно провер€ем 3-й и 4-й байты перед с/н и прошивкой
+	const size_t LexmarkMX310Len = 20;
+	const char *szLexmarkMX310 = "Lexmark MX310 Series";
+	byte LexmarkMX310[LexmarkMX310Len];
+	for (u_int i = 0; i < LexmarkMX310Len; i++)
+		LexmarkMX310[i] = (byte)szLexmarkMX310[i];
+
+	// ¬озможно, в ответе вообще не будет с/н и версии прошивки, на вс€кий случай присвоим какие-то значени€
+	strcpy_s(Pi.Sn, 8, "UNKNOWN");
+	strcpy_s(Pi.Fw, 8, "UNKNOWN");
+
+	for (u_int i = 0; i < AllCount - LexmarkMX310Len; i++)
+	{
+		for (u_int j = 0; j < LexmarkMX310Len; j++)
+		{
+			if (j == LexmarkMX310Len - 1) // Ќашли строку
+			{
+				if(0x01 == AllAnswer[i-50] && 0x02 == AllAnswer[i-49])	// ѕеред с/н идут байты 01 02 (00 0D) - длина
+					memcpy(Pi.Sn, AllAnswer + i - 46, 0x0d);
+				if (0x0C == AllAnswer[i + 133] && 0x02 == AllAnswer[i + 134])	// ѕеред прошивкой идут байты 0C 02 (00 0D) - длина
+					memcpy(Pi.Fw, AllAnswer + i + 137, 0x0d);
+			}
+			if (AllAnswer[i + j] != LexmarkMX310[j])
+				break;
+		}
+	}
 
 	// »щем строку "Black Toner" в ответе, р€дом будут серийный номер картриджа, емкость и остаток тонера в %
 	const size_t BlackTonerLen = 11;
@@ -439,8 +473,8 @@ void GetTonerLeft()
 	///////////////////////////////////////////////////////////////////////////////////////////////
 	// ѕолучение данных от принтера. Ќадеемс€, что нужные сведени€ всегда с одинаковыми адресами ((
 	// Ќадежды не оправдались, адреса всегда мен€ютс€
-	memcpy(Pi.Sn,  AllAnswer +  75, 0x0d);
-	memcpy(Pi.Fw,  AllAnswer + 258, 0x0d);
+	//memcpy(Pi.Sn,  AllAnswer +  75, 0x0d);
+	//memcpy(Pi.Fw,  AllAnswer + 258, 0x0d);
 	//memcpy(Pi.cSn, AllAnswer + 911, 0x0c);
 	//Pi.cCapacity  = ((u_int)AllAnswer[0x39f] << 8 * 3) + ((u_int)AllAnswer[0x3a0] << 8 * 2) + ((u_int)AllAnswer[0x3a1] << 8 * 1) + ((u_int)AllAnswer[0x3a2]);
 	//memcpy(&Pi.cCapacity, AllAnswer + 0x39f, 4);

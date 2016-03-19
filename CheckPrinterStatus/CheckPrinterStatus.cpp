@@ -85,6 +85,156 @@ void ErrorHandler()
 	exit(EXIT_SUCCESS);
 }
 
+void GetStructure6()
+{
+	DWORD nSize(64);
+	TCHAR *szComputerName = new TCHAR[64];
+	GetComputerName(szComputerName, &nSize);
+	wcout << "Comp name " << szComputerName << " " << nSize << endl;
+	delete szComputerName;
+
+	DWORD pcchBuffer;
+	GetDefaultPrinter(NULL, &pcchBuffer);
+	wchar_t *szDefaultPrinter = new wchar_t[pcchBuffer];
+	GetDefaultPrinter(szDefaultPrinter, &pcchBuffer);
+
+	HANDLE hPrinter;
+	OpenPrinter(szDefaultPrinter, &hPrinter, NULL);
+
+	PRINTER_INFO_2 *pPrinter;
+	JOB_INFO_2 *pJobInfo;
+	DWORD cbBuf(0), cbNeeded(0), nReturned(0);
+	DWORD dwChange;
+
+	//HANDLE chObj = FindFirstPrinterChangeNotification(hPrinter, PRINTER_CHANGE_JOB, 0, NULL);
+
+	PORT_INFO_2 *portInfo2;
+	EnumPorts(NULL, 2, NULL, 0, &cbNeeded, &nReturned);
+	portInfo2 = (PORT_INFO_2*)malloc(cbNeeded);
+	ZeroMemory(portInfo2, cbNeeded);
+	EnumPorts(NULL, 2, (LPBYTE)portInfo2, cbNeeded, &cbNeeded, &nReturned);
+
+	for (int i = 0; i < nReturned; i++)
+		wcout << "portInfo2 " << portInfo2[i].fPortType << ", " << portInfo2[i].pPortName << ", " << portInfo2[i].pMonitorName << endl;
+
+	while (!gFlagExit)
+	{
+		GetPrinter(hPrinter, 2, NULL, cbBuf, &cbNeeded);
+
+		pPrinter = (PRINTER_INFO_2*)malloc(cbNeeded);
+		ZeroMemory(pPrinter, cbNeeded);
+		GetPrinter(hPrinter, 2, (LPBYTE)pPrinter, cbNeeded, &cbNeeded);
+
+		wcout << _T("Printer ") << szDefaultPrinter << _T(", Status ") << hex << pPrinter->Status << dec << endl;
+
+		if ((pPrinter->Status & PRINTER_STATUS_PAPER_OUT) == PRINTER_STATUS_PAPER_OUT)
+			wcout << _T("No Paper") << endl;
+		if ((pPrinter->Status & PRINTER_STATUS_TONER_LOW) == PRINTER_STATUS_TONER_LOW)
+			wcout << _T("Near Paper") << endl;
+		if ((pPrinter->Status & PRINTER_STATUS_OUTPUT_BIN_FULL) == PRINTER_STATUS_OUTPUT_BIN_FULL)
+			wcout << _T("Ticket Out") << endl;
+		if ((pPrinter->Status & PRINTER_STATUS_DOOR_OPEN) == PRINTER_STATUS_DOOR_OPEN)
+			wcout << _T("No Cover") << endl;
+		if ((pPrinter->Status & PRINTER_STATUS_USER_INTERVENTION) == PRINTER_STATUS_USER_INTERVENTION)
+			wcout << _T("Cut Error") << endl;
+		if ((pPrinter->Status & PRINTER_STATUS_PAPER_JAM) == PRINTER_STATUS_PAPER_JAM)
+			wcout << _T("Paper Jam") << endl;
+		if ((pPrinter->Status & PRINTER_STATUS_WAITING) == PRINTER_STATUS_WAITING)
+			wcout << _T("Overtemperature") << endl;
+		if ((pPrinter->Status & PRINTER_STATUS_NO_TONER) == PRINTER_STATUS_NO_TONER)
+			wcout << _T("Voltage Error") << endl;
+		if ((pPrinter->Status & PRINTER_STATUS_PRINTING) == PRINTER_STATUS_PRINTING)
+			wcout << _T("Spooling") << endl;
+
+		dwChange = WaitForPrinterChange(hPrinter, PRINTER_CHANGE_ALL);
+		wcout << "dwChange = " << hex << dwChange << dec << endl;
+		//FindNextPrinterChangeNotification(chObj, &dwChange, NULL, NULL);
+
+		EnumJobs(hPrinter, 0, pPrinter->cJobs, 2, NULL, 0, &cbNeeded, &nReturned);
+		pJobInfo = (JOB_INFO_2*)malloc(cbNeeded);
+		ZeroMemory(pJobInfo, cbNeeded);
+		EnumJobs(hPrinter, 0, pPrinter->cJobs, 2, (LPBYTE)pJobInfo, cbNeeded, &cbNeeded, &nReturned);
+
+		for (int i = 0; i < nReturned; i++)
+		{
+			if(pJobInfo[i].pStatus != NULL)
+				wcout << "JobId " << pJobInfo[i].JobId << ", document " << pJobInfo[i].pDocument << ", pStatus " << pJobInfo[i].pStatus << ", status " << hex << pJobInfo[i].Status << dec << endl;
+			else
+				wcout << "JobId " << pJobInfo[i].JobId << ", document " << pJobInfo[i].pDocument << ", status " << hex << pJobInfo[i].Status << dec << endl;
+			
+			if ((pJobInfo[i].Status & JOB_STATUS_BLOCKED_DEVQ) == JOB_STATUS_BLOCKED_DEVQ)
+				wcout << _T("JOB_STATUS_BLOCKED_DEVQ") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_COMPLETE) == JOB_STATUS_COMPLETE)
+				wcout << _T("JOB_STATUS_COMPLETE") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_DELETED) == JOB_STATUS_DELETED)
+				wcout << _T("JOB_STATUS_COMPLETE") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_DELETING) == JOB_STATUS_DELETING)
+				wcout << _T("JOB_STATUS_DELETING") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_ERROR) == JOB_STATUS_ERROR)
+				wcout << _T("JOB_STATUS_ERROR") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_OFFLINE) == JOB_STATUS_OFFLINE)
+				wcout << _T("JOB_STATUS_OFFLINE") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_PAPEROUT) == JOB_STATUS_PAPEROUT)
+				wcout << _T("JOB_STATUS_PAPEROUT") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_PAUSED) == JOB_STATUS_PAUSED)
+				wcout << _T("JOB_STATUS_PAUSED") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_PRINTED) == JOB_STATUS_PRINTED)
+				wcout << _T("JOB_STATUS_PRINTED") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_PRINTING) == JOB_STATUS_PRINTING)
+				wcout << _T("JOB_STATUS_PRINTING") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_RENDERING_LOCALLY) == JOB_STATUS_RENDERING_LOCALLY)
+				wcout << _T("JOB_STATUS_RENDERING_LOCALLY") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_RESTART) == JOB_STATUS_RESTART)
+				wcout << _T("JOB_STATUS_RESTART") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_RETAINED) == JOB_STATUS_RETAINED)
+				wcout << _T("JOB_STATUS_RETAINED") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_SPOOLING) == JOB_STATUS_SPOOLING)
+				wcout << _T("JOB_STATUS_SPOOLING") << endl;
+			if ((pJobInfo[i].Status & JOB_STATUS_USER_INTERVENTION) == JOB_STATUS_USER_INTERVENTION)
+				wcout << _T("JOB_STATUS_USER_INTERVENTION") << endl;
+		}
+
+		wcout << endl;
+		//Sleep(1000);
+
+		free(pPrinter);
+		free(pJobInfo);
+	}
+/*
+No Paper PRINTER_STATUS_PAPER_OUT
+Near Paper End PRINTER_STATUS_TONER_LOW
+Ticket Out PRINTER_STATUS_OUTPUT_BIN_FULL
+No Cover PRINTER_STATUS_DOOR_OPEN
+Cut Error PRINTER_STATUS_USER_INTERVENTION
+Paper Jam PRINTER_STATUS_PAPER_JAM
+Overtemperature PRINTER_STATUS_WAITING
+Voltage Error PRINTER_STATUS_NO_TONER
+Spooling PRINTER_STATUS_PRINTING
+*/
+
+/*	if ((pPrinter->dwStatus & PRINTER_STATUS_PAPER_OUT) == PRINTER_STATUS_PAPER_OUT)
+		wcout << _T("No Paper") << endl;
+	if ((pPrinter->dwStatus & PRINTER_STATUS_TONER_LOW) == PRINTER_STATUS_TONER_LOW)
+		wcout << _T("Near Paper") << endl;
+	if ((pPrinter->dwStatus & PRINTER_STATUS_OUTPUT_BIN_FULL) == PRINTER_STATUS_OUTPUT_BIN_FULL)
+		wcout << _T("Ticket Out") << endl;
+	if ((pPrinter->dwStatus & PRINTER_STATUS_DOOR_OPEN) == PRINTER_STATUS_DOOR_OPEN)
+		wcout << _T("No Cover") << endl;
+	if ((pPrinter->dwStatus & PRINTER_STATUS_USER_INTERVENTION) == PRINTER_STATUS_USER_INTERVENTION)
+		wcout << _T("Cut Error") << endl;
+	if ((pPrinter->dwStatus & PRINTER_STATUS_PAPER_JAM) == PRINTER_STATUS_PAPER_JAM)
+		wcout << _T("Paper Jam") << endl;
+	if ((pPrinter->dwStatus & PRINTER_STATUS_WAITING) == PRINTER_STATUS_WAITING)
+		wcout << _T("Overtemperature") << endl;
+	if ((pPrinter->dwStatus & PRINTER_STATUS_NO_TONER) == PRINTER_STATUS_NO_TONER)
+		wcout << _T("Voltage Error") << endl;
+	if ((pPrinter->dwStatus & PRINTER_STATUS_PRINTING) == PRINTER_STATUS_PRINTING)
+		wcout << _T("Spooling") << endl;*/
+
+//	free(pPrinter);
+//	delete szDefaultPrinter;
+}
+
 int main(int argc, char *argv[])
 {
 	std::locale rus("rus_rus.866");
@@ -96,6 +246,9 @@ int main(int argc, char *argv[])
 	args["code"] = 1;
 	args["pc"] = 2;
 	args["status"] = 3;*/
+
+	GetStructure6();
+	return 0;
 
 	if (argc != 2)
 	{
