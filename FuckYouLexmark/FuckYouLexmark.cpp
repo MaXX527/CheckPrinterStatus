@@ -52,8 +52,22 @@ void ErrorHandler()
 	clock_t end_time = clock() + (TIMEOUT - 1) * CLOCKS_PER_SEC;
 	while (clock() < end_time) { Sleep(100); }
 	LogFile("Аварийное завершение: ErrorHandler()");
+	CancelIoEx(hPort, NULL);
 	CloseHandle(hPort);
 	exit(EXIT_SUCCESS);
+}
+
+// После каждого обмена передается ReadBreak, принтер ответчает то же самое
+void ReadBreak()
+{
+	DWORD BytesWritten;
+	const byte b1[] = { 0xa5, 0x00, 0x0c, 0x50, 0x03, 0x04, 0x52, 0x65, 0x61, 0x64, 0x42, 0x72, 0x65, 0x61, 0x6b };
+	
+	byte answer[BUFSIZ];
+
+	if (!WriteFile(hPort, (LPCVOID)b1, sizeof b1, &BytesWritten, NULL)) ErrorHandler();
+
+	ReadFile(hPort, answer, BUFSIZ, &BytesWritten, NULL);
 }
 
 // С таких байт начинается обмен сообщениями, на всякий случай тоже их отправим
@@ -76,6 +90,7 @@ void Timeout()
 {
 	clock_t end_time = clock() + TIMEOUT * CLOCKS_PER_SEC;
 	while (clock() < end_time) { Sleep(100); }
+	CancelIoEx(hPort, NULL);
 	LogFile("Аварийное завершение: Timeout()");
 	exit(EXIT_SUCCESS);
 }
@@ -361,11 +376,17 @@ void GetTonerLeft()
 
 		//if (!(Flag & flagContinue)) break;
 
-		//if ((BytesRead > 0) && (0x2c == answer[BytesRead - 1])) break;	// Последний байт в ответе обычно 0x2c
+		if ((BytesRead > 0) && (0x01 == answer[BytesRead - 2]) && (0x2c == answer[BytesRead - 1]))	// Последние байты в ответе обычно 0x01 0x2c
+		{
+			LogFile("Flag=1, но пришли байты 0x01 0x2c");
+			break;
+		}
 		//if (47 == CountA5) break;										// Для страховки проверяем количество пакетов
 		//if (0 == BytesRead) break;										// Прочитано 0 байт, наверное хватит
 		//wcout << BytesRead << " " << CountA5 << endl;
 	}
+
+	ReadBreak();
 
 	// Записываем все муть, пришедшую с принтера, в файл log\answer.bin для последующего анализа
 	ofstream answerbin("C:\\Zabbix\\log\\answer.bin", ios::out | ios::trunc | ios::binary);
@@ -401,7 +422,7 @@ void GetTonerLeft()
 		{
 			if (j == LexmarkMX310Len - 1) // Нашли строку
 			{
-				if(0x01 == AllAnswer[i-50] && 0x02 == AllAnswer[i-49])	// Перед с/н идут байты 01 02 (00 0D) - длина
+				if((i - 50) > 0 && 0x01 == AllAnswer[i-50] && 0x02 == AllAnswer[i-49])	// Перед с/н идут байты 01 02 (00 0D) - длина
 					memcpy(Pi.Sn, AllAnswer + i - 46, 0x0d);
 				if (0x0C == AllAnswer[i + 133] && 0x02 == AllAnswer[i + 134])	// Перед прошивкой идут байты 0C 02 (00 0D) - длина
 					memcpy(Pi.Fw, AllAnswer + i + 137, 0x0d);

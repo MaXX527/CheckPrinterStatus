@@ -145,6 +145,9 @@ void GetStructure6()
 			wcout << _T("Voltage Error") << endl;
 		if ((pPrinter->Status & PRINTER_STATUS_PRINTING) == PRINTER_STATUS_PRINTING)
 			wcout << _T("Spooling") << endl;
+		if ((pPrinter->Status & PRINTER_STATUS_OFFLINE) == PRINTER_STATUS_OFFLINE)
+			wcout << _T("Offline") << endl;
+		
 
 		dwChange = WaitForPrinterChange(hPrinter, PRINTER_CHANGE_ALL);
 		wcout << "dwChange = " << hex << dwChange << dec << endl;
@@ -248,6 +251,7 @@ int main(int argc, char *argv[])
 	args["status"] = 3;*/
 
 	GetStructure6();
+	system("PAUSE");
 	return 0;
 
 	if (argc != 2)
