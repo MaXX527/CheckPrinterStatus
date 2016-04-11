@@ -330,8 +330,8 @@ void GetTonerLeft()
 
 	// ѕолучение остатка тонера
 
-	DWORD BytesWritten;
-	DWORD BytesRead;
+	DWORD BytesWritten(0);
+	DWORD BytesRead(0);
 
 	if (!WriteFile(hPort, (LPCVOID)b1, sizeof b1, &BytesWritten, NULL)) ErrorHandler();
 	//wcout << "Send buffer 1" << endl;
@@ -360,10 +360,16 @@ void GetTonerLeft()
 
 	while ((Flag & flagContinue))
 	{
+		if ((BytesRead > 0) && (0x01 == answer[BytesRead - 2]) && (0x2c == answer[BytesRead - 1]))	// ѕоследние байты в ответе обычно 0x01 0x2c
+		{
+			LogFile("Flag=1, но пришли байты 0x01 0x2c");
+			break;
+		}
+
 		ReadFile(hPort, answer, BUFSIZE, &BytesRead, NULL);
 		for (size_t i = 0; i < BytesRead; i++)
 		{
-			if (0xa5 == answer[i])
+			if (0xa5 == answer[i]) // ѕропускаем заголовок
 			{
 				CountA5++;
 				i += 4;
@@ -376,11 +382,7 @@ void GetTonerLeft()
 
 		//if (!(Flag & flagContinue)) break;
 
-		if ((BytesRead > 0) && (0x01 == answer[BytesRead - 2]) && (0x2c == answer[BytesRead - 1]))	// ѕоследние байты в ответе обычно 0x01 0x2c
-		{
-			LogFile("Flag=1, но пришли байты 0x01 0x2c");
-			break;
-		}
+		
 		//if (47 == CountA5) break;										// ƒл€ страховки провер€ем количество пакетов
 		//if (0 == BytesRead) break;										// ѕрочитано 0 байт, наверное хватит
 		//wcout << BytesRead << " " << CountA5 << endl;
