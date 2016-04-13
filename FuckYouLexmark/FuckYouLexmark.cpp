@@ -23,14 +23,7 @@ void LogFile(const char *msg)
 	logfile.close();
 }
 
-void CharToAnsi(wchar_t *pSrc, char *pDst)
-{
-	char pBuf[BUFSIZ];
-	CharToOem(pSrc, pBuf);
-	OemToAnsi(pBuf, pDst);
-}
-
-/*void LogFileW(const wchar_t *msg)
+void LogFile(const wchar_t *msg)
 {
 	time_t rawtime;
 	struct tm timeinfo;
@@ -40,11 +33,136 @@ void CharToAnsi(wchar_t *pSrc, char *pDst)
 	localtime_s(&timeinfo, &rawtime);
 
 	wcsftime(buffer, 80, _T("%Y-%m-%d %H:%M:%S: "), &timeinfo);
-	
-	ofstream logfile("C:\\Zabbix\\log\\fyl.log", ios::out | ios::app);
+
+	wofstream logfile(_T("C:\\Zabbix\\log\\fyl.log"), ios::out | ios::app);
 	logfile << buffer << msg << endl;
 	logfile.close();
+}
+
+/*void CharToAnsi(wchar_t *pSrc, char *pDst)
+{
+	char pBuf[BUFSIZ];
+	CharToOem(pSrc, pBuf);
+	OemToAnsi(pBuf, pDst);
 }*/
+
+// Узнать путь принтера по умолчанию
+bool GetDefaultPrinterPath(wchar_t *path /* Out путь принтера */, size_t *l /* Out длина пути принтера */)
+{
+	bool ret = false;
+	*l = 0;
+
+	HANDLE     hPrinter;
+//	DOC_INFO_1 DocInfo;
+	DWORD      dwJob(0);
+	DWORD      dwBytesWritten(0);
+	DWORD      dwBytesRead(0);
+
+	// Принтер по умолчанию
+	DWORD pcchBuffer;
+	GetDefaultPrinterA(NULL, &pcchBuffer);
+	TCHAR *szDefaultPrinter = new TCHAR[pcchBuffer];
+	GetDefaultPrinter(szDefaultPrinter, &pcchBuffer);
+	//wcout << _T("szDefaultPrinter = ") << szDefaultPrinter << endl;
+
+	// Параметры принтера
+	PRINTER_OPTIONS po;
+	ZeroMemory(&po, sizeof PRINTER_OPTIONS);
+	po.cbSize = sizeof PRINTER_OPTIONS;
+	po.dwFlags = PRINTER_OPTION_NO_CACHE;
+	PRINTER_DEFAULTS PrinterDefaults = { NULL, NULL, PRINTER_ALL_ACCESS };
+
+	DWORD cbNeeded(0);
+	OpenPrinter2(szDefaultPrinter, &hPrinter, &PrinterDefaults, &po);
+
+	// Узнать экземпляр принтера, что-то типа USBPRINT\LEXMARKLEXMARK_MX310_SERIES\8&23B21019&0&USB003
+	// Можно подсмотреть в HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Printers\Lexmark MX310 Series XL\PnPData\DeviceInstanceId
+	GetPrinterDataEx(hPrinter, _T("PnPData"), _T("DeviceInstanceId"), NULL, NULL, 0, &cbNeeded);
+	DWORD nSize = cbNeeded;
+	wchar_t *szDeviceInstanceId = new wchar_t[cbNeeded];
+	GetPrinterDataEx(hPrinter, _T("PnPData"), _T("DeviceInstanceId"), NULL, (LPBYTE)szDeviceInstanceId, nSize, &cbNeeded);
+	//wcout << _T("PnPData->DeviceInstanceId = ") << szDeviceInstanceId << endl;
+	if(path != nullptr)
+		LogFile(szDeviceInstanceId);
+	ClosePrinter(hPrinter);
+
+	// Перебор всех устройств класса USBPRINT
+	static const GUID GUID_DEVINTERFACE_USBPRINT = { 0x28d78fad,0x5a12,0x11D1,0xae,0x5b,0x00,0x00,0xf8,0x03,0xa8,0xc2 };
+	HDEVINFO hDevInfoSet = SetupDiGetClassDevs(&GUID_DEVINTERFACE_USBPRINT, NULL, NULL, DIGCF_ALLCLASSES | DIGCF_PRESENT | DIGCF_DEVICEINTERFACE); // DIGCF_PRESENT - только присутствующие устройства
+
+	SP_DEVINFO_DATA DeviceInfoData;
+	ZeroMemory(&DeviceInfoData, sizeof SP_DEVINFO_DATA);
+	DeviceInfoData.cbSize = sizeof SP_DEVINFO_DATA;
+
+	SP_DEVICE_INTERFACE_DATA DeviceInterfaceData;
+	ZeroMemory(&DeviceInterfaceData, sizeof SP_DEVICE_INTERFACE_DATA);
+	DeviceInterfaceData.cbSize = sizeof SP_DEVICE_INTERFACE_DATA;
+
+	PSP_DEVICE_INTERFACE_DETAIL_DATA DeviceInterfaceDetailData;
+
+	DWORD MemberIndex(0);
+	DWORD RequiredSize(0);
+	DWORD PropertyRegDataType(0);
+//	wchar_t *DeviceInstanceId;
+
+	wchar_t TempBuffer[512];
+	ULONG BufferLen = 512;
+
+	SP_DEVINSTALL_PARAMS DeviceInstallParams;
+	ZeroMemory(&DeviceInstallParams, sizeof SP_DEVINSTALL_PARAMS);
+	DeviceInstallParams.cbSize = sizeof SP_DEVINSTALL_PARAMS;
+
+	DEVINST devInst;
+
+	// Цикл по интерфейсам USBPRINT
+	while (SetupDiEnumDeviceInterfaces(hDevInfoSet, NULL, &GUID_DEVINTERFACE_USBPRINT, MemberIndex++, &DeviceInterfaceData))
+	{
+		SetupDiGetDeviceInterfaceDetail(hDevInfoSet, &DeviceInterfaceData, NULL, 0, &RequiredSize, NULL);
+		DeviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA)malloc(RequiredSize);
+		DeviceInterfaceDetailData->cbSize = sizeof SP_DEVICE_INTERFACE_DETAIL_DATA;
+		SetupDiGetDeviceInterfaceDetail(hDevInfoSet, &DeviceInterfaceData, DeviceInterfaceDetailData, RequiredSize, &RequiredSize, &DeviceInfoData);
+
+		// Родитель USB-принтеров будет "Поддержка USB принтера"
+		// Получаем первый дочерний узел
+		CM_Get_Child(&devInst, DeviceInfoData.DevInst, 0);
+		ZeroMemory(TempBuffer, BufferLen);
+		CM_Get_Device_ID(devInst, TempBuffer, BufferLen, 0);
+		// Попался нужный экземпляр, получить путь принтера
+		// Смотреть где-то тут: HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\DeviceClasses\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\##?#USB#VID_043D&PID_0227&MI_01#7&1f0b0e8&1&0001#{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\#\SymbolicLink
+		// Например SymbolicLink = \\?\USB#VID_043D&PID_0227&MI_01#7&1f0b0e8&1&0001#{28d78fad-5a12-11d1-ae5b-0000f803a8c2}
+		if (0 == _wcsicmp(szDeviceInstanceId, TempBuffer))
+		{
+			*l = wcslen(DeviceInterfaceDetailData->DevicePath) + 1;
+			// Первый раз вызов идет с nullptr, чтобы узнать необходимый размер строки
+			if(path != nullptr)
+				wcscpy_s(path, *l, DeviceInterfaceDetailData->DevicePath);
+			ret = true;
+		}
+		// Здесь нужно получить остальные дочерние узлы, на тот случай, если есть несколько принтеров
+		// Хз насколько этот код правильный
+		// Но поскольку такой случай маловероятен и все равно DeviceInterfaceDetailData один для всех детей, то забиваем на это
+		while (CR_SUCCESS == CM_Get_Sibling(&devInst, devInst, 0))
+		{
+			ZeroMemory(TempBuffer, BufferLen);
+			CM_Get_Device_IDW(devInst, TempBuffer, BufferLen, 0);
+			if (0 == _wcsicmp(szDeviceInstanceId, TempBuffer))
+			{
+				*l = wcslen(DeviceInterfaceDetailData->DevicePath) + 1;
+				// Первый раз вызов идет с nullptr, чтобы узнать необходимый размер строки
+				if (path != nullptr)
+					wcscpy_s(path, *l, DeviceInterfaceDetailData->DevicePath);
+				ret = true;
+			}
+		}
+
+		free(DeviceInterfaceDetailData);
+	}
+
+	delete szDeviceInstanceId;
+	delete szDefaultPrinter;
+
+	return ret;
+}
 
 // Если за время TIMEOUT-1 программа не завершилась, значит произошла какая-то ошибка. Пытаемся закрыть порт и выйти
 void ErrorHandler()
@@ -117,7 +235,8 @@ bool GetData(const char* pCmd)
 
 	if (!WriteFile(hPort, pCmd, (DWORD)strlen(pCmd), &bytesWritten, NULL)) return false;
 
-	while (ReadFile(hPort, readBuf, BUFSIZ, &bytesRead, NULL))
+//	while (ReadFile(hPort, readBuf, BUFSIZ, &bytesRead, NULL))
+	ReadFile(hPort, readBuf, BUFSIZ, &bytesRead, NULL);
 	{
 		found = strstr(readBuf, SubStrCODE);
 		if (found)
@@ -155,7 +274,7 @@ bool GetData(const char* pCmd)
 				PAGECOUNT[j++] = found[j + 11];
 		}
 
-		if (0x0a == (unsigned short)readBuf[bytesRead - 2] && 0x0c == (unsigned short)readBuf[bytesRead - 1]) break; // Конец сообщения
+		//if (0x0a == (unsigned short)readBuf[bytesRead - 2] && 0x0c == (unsigned short)readBuf[bytesRead - 1]) break; // Конец сообщения
 		ZeroMemory(&readBuf, BUFSIZ);
 	}
 	LogFile("GetData()");
@@ -176,141 +295,154 @@ int GetIntFromAllAnswer(const byte b[], const u_int s)
 	return ((u_int)b[s] << 8 * 3) + ((u_int)b[s + 1] << 8 * 2) + ((u_int)b[s + 2] << 8) + (u_int)b[s + 3];
 }
 
+/*
+// Вариант опеределения пути принтера прямо из реестра
+// Принтер по умолчанию
+DWORD pcchBuffer;
+GetDefaultPrinter(NULL, &pcchBuffer);
+wchar_t *szDefaultPrinter = new wchar_t[pcchBuffer];
+GetDefaultPrinter(szDefaultPrinter, &pcchBuffer);
+
+HANDLE hPrinter;
+OpenPrinter(szDefaultPrinter, &hPrinter, NULL);
+
+PRINTER_INFO_2 *pPrinter;
+DWORD cbBuf(0), cbNeeded(0);
+GetPrinter(hPrinter, 2, NULL, cbBuf, &cbNeeded);
+cbBuf = cbNeeded;
+
+pPrinter = (PRINTER_INFO_2*)malloc(cbBuf);
+GetPrinter(hPrinter, 2, (LPBYTE)pPrinter, cbBuf, &cbNeeded);
+
+// Если статус принтера не 0, лучше его не трогать. 0 по идее означает готов
+if (pPrinter->Status != 0) ErrorHandler();
+
+char szBuf[BUFSIZ];
+ZeroMemory(szBuf, BUFSIZ);
+CharToAnsi(szDefaultPrinter, szBuf);
+LogFile(szBuf);
+ZeroMemory(szBuf, BUFSIZ);
+_itoa_s(pPrinter->Status, szBuf, BUFSIZ, 10);
+LogFile(szBuf);
+
+// Адрес? порта принтера
+//HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\DeviceClasses\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}
+HKEY	hkResult;
+HKEY	hkDeviceParameters;
+//HKEY	hkControl;
+TCHAR	achClass[MAX_PATH] = TEXT("");
+TCHAR	achKey[REG_MAX_KEY_LENGTH];
+DWORD	cbName;
+DWORD	cchClassName = MAX_PATH;
+DWORD	cSubKeys = 0;
+DWORD	cbMaxSubKey;
+DWORD	cchMaxClass;
+DWORD	cValues;
+DWORD	cchMaxValue;
+DWORD	cbMaxValueData;
+DWORD	cbSecurityDescriptor;
+FILETIME ftLastWriteTime;
+
+const TCHAR *szRegDeviceClass = _T("SYSTEM\\CurrentControlSet\\Control\\DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}");
+TCHAR szRegDeviceParameters[REG_MAX_VALUE_NAME];
+TCHAR szRegSymbolicLink[REG_MAX_VALUE_NAME];
+TCHAR szRegControl[REG_MAX_VALUE_NAME];
+TCHAR szInterface[REG_MAX_VALUE_NAME];
+VOID *vData;
+TCHAR szBaseName[REG_MAX_VALUE_NAME];
+DWORD PortNumber;
+TCHAR szPort[REG_MAX_VALUE_NAME];
+char szPortA[REG_MAX_VALUE_NAME];
+DWORD cbData(0);
+DWORD Type(0);
+
+BOOL flagExit = FALSE;
+
+ZeroMemory(szRegDeviceParameters, REG_MAX_VALUE_NAME);
+ZeroMemory(szRegSymbolicLink, REG_MAX_VALUE_NAME);
+ZeroMemory(szRegControl, REG_MAX_VALUE_NAME);
+ZeroMemory(szInterface, REG_MAX_VALUE_NAME);
+ZeroMemory(szBaseName, REG_MAX_VALUE_NAME);
+ZeroMemory(szPort, REG_MAX_VALUE_NAME);
+
+RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegDeviceClass, 0, KEY_READ, &hkResult); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}
+RegQueryInfoKey(
+hkResult,				// key handle
+achClass,               // buffer for class name
+&cchClassName,          // size of class string
+NULL,                   // reserved
+&cSubKeys,              // number of subkeys
+&cbMaxSubKey,           // longest subkey size
+&cchMaxClass,           // longest class string
+&cValues,               // number of values for this key
+&cchMaxValue,           // longest value name
+&cbMaxValueData,        // longest value data
+&cbSecurityDescriptor,  // security descriptor
+&ftLastWriteTime		// last write time
+);
+int ret(0);
+for (u_int i = 0; i < cSubKeys, !flagExit; i++)
+{
+cbName = REG_MAX_KEY_LENGTH;
+RegEnumKeyEx(hkResult, i, achKey, &cbName, NULL, NULL, NULL, &ftLastWriteTime);
+
+wcscpy_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, szRegDeviceClass);
+wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, _T("\\"));
+wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, achKey);
+wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, _T("\\#"));
+wcscpy_s(szRegSymbolicLink, REG_MAX_VALUE_NAME, szRegDeviceParameters);
+wcscpy_s(szRegControl, REG_MAX_VALUE_NAME, szRegDeviceParameters);
+wcscat_s(szRegControl, REG_MAX_VALUE_NAME, _T("\\Control"));
+wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, _T("\\Device Parameters"));
+
+RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegDeviceParameters, 0, KEY_READ, &hkDeviceParameters); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
+
+PortNumber = 0;
+RegGetValue(HKEY_LOCAL_MACHINE, szRegDeviceParameters, _T("Base Name"), RRF_RT_ANY, NULL, NULL, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
+vData = (VOID*)malloc(cbData);
+RegGetValue(HKEY_LOCAL_MACHINE, szRegDeviceParameters, _T("Base Name"), RRF_RT_ANY, NULL, vData, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
+memcpy(szBaseName, vData, cbData);
+free(vData);
+PortNumber = 0;
+RegGetValue(HKEY_LOCAL_MACHINE, szRegDeviceParameters, _T("Port Number"), RRF_RT_ANY, NULL, &PortNumber, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
+
+wsprintf(szPort, _T("%s%03d"), szBaseName, PortNumber);
+
+//if(PortNumber > 0 	// Нашли просто какой-то порт, т.к. агент заббикса запускается не от локального пользователя и у него другой принтер по умолчанию (((
+//	&& ERROR_SUCCESS == RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegControl, 0, KEY_READ, &hkControl)) // Проверяем, что есть раздел DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Control
+
+// Поиск порта подходит, если запускаемся от локального пользователя. Если от админа или system - надо проверять значение \\#\Control\Linked == 1
+if (0 == wcscmp(pPrinter->pPortName, szPort)) // Найденный порт совпал с портом принтера по умолчанию, значит нашли то что надо
+{
+RegGetValue(HKEY_LOCAL_MACHINE, szRegSymbolicLink, _T("SymbolicLink"), RRF_RT_ANY, NULL, NULL, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#
+vData = (VOID*)malloc(cbData);
+RegGetValue(HKEY_LOCAL_MACHINE, szRegSymbolicLink, _T("SymbolicLink"), RRF_RT_ANY, NULL, vData, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#
+memcpy(szInterface, vData, cbData);
+free(vData);
+flagExit = TRUE;
+CharToOem(szPort, szPortA);
+LogFile(szPortA);
+}
+RegCloseKey(hkDeviceParameters);
+}
+RegCloseKey(hkResult);
+free(pPrinter);
+*/
+
 // Самое интересное - пытаемся узнать, на сколько страниц осталось тонера в картридже
 void GetTonerLeft()
 {
-	// Принтер по умолчанию
-	DWORD pcchBuffer;
-	GetDefaultPrinter(NULL, &pcchBuffer);
-	wchar_t *szDefaultPrinter = new wchar_t[pcchBuffer];
-	GetDefaultPrinter(szDefaultPrinter, &pcchBuffer);
-
-	HANDLE hPrinter;
-	OpenPrinter(szDefaultPrinter, &hPrinter, NULL);
-
-	PRINTER_INFO_2 *pPrinter;
-	DWORD cbBuf(0), cbNeeded(0);
-	GetPrinter(hPrinter, 2, NULL, cbBuf, &cbNeeded);
-	cbBuf = cbNeeded;
-
-	pPrinter = (PRINTER_INFO_2*)malloc(cbBuf);
-	GetPrinter(hPrinter, 2, (LPBYTE)pPrinter, cbBuf, &cbNeeded);
-
-	// Если статус принтера не 0, лучше его не трогать. 0 по идее означает готов
-	if (pPrinter->Status != 0) ErrorHandler();
-
-	char szBuf[BUFSIZ];
-	ZeroMemory(szBuf, BUFSIZ);
-	CharToAnsi(szDefaultPrinter, szBuf);
-	LogFile(szBuf);
-	ZeroMemory(szBuf, BUFSIZ);
-	_itoa_s(pPrinter->Status, szBuf, BUFSIZ, 10);
-	LogFile(szBuf);
-
-	// Адрес? порта принтера
-	//HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\DeviceClasses\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}
-	HKEY	hkResult;
-	HKEY	hkDeviceParameters;
-	//HKEY	hkControl;
-	TCHAR	achClass[MAX_PATH] = TEXT("");
-	TCHAR	achKey[REG_MAX_KEY_LENGTH];
-	DWORD	cbName;
-	DWORD	cchClassName = MAX_PATH;
-	DWORD	cSubKeys = 0;
-	DWORD	cbMaxSubKey;
-	DWORD	cchMaxClass;
-	DWORD	cValues;
-	DWORD	cchMaxValue;
-	DWORD	cbMaxValueData;
-	DWORD	cbSecurityDescriptor;
-	FILETIME ftLastWriteTime;
-
-	const TCHAR *szRegDeviceClass = _T("SYSTEM\\CurrentControlSet\\Control\\DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}");
-	TCHAR szRegDeviceParameters[REG_MAX_VALUE_NAME];
-	TCHAR szRegSymbolicLink[REG_MAX_VALUE_NAME];
-	TCHAR szRegControl[REG_MAX_VALUE_NAME];
-	TCHAR szInterface[REG_MAX_VALUE_NAME];
-	VOID *vData;
-	TCHAR szBaseName[REG_MAX_VALUE_NAME];
-	DWORD PortNumber;
-	TCHAR szPort[REG_MAX_VALUE_NAME];
-	char szPortA[REG_MAX_VALUE_NAME];
-	DWORD cbData(0);
-	DWORD Type(0);
-
-	BOOL flagExit = FALSE;
-
-	ZeroMemory(szRegDeviceParameters, REG_MAX_VALUE_NAME);
-	ZeroMemory(szRegSymbolicLink, REG_MAX_VALUE_NAME);
-	ZeroMemory(szRegControl, REG_MAX_VALUE_NAME);
-	ZeroMemory(szInterface, REG_MAX_VALUE_NAME);
-	ZeroMemory(szBaseName, REG_MAX_VALUE_NAME);
-	ZeroMemory(szPort, REG_MAX_VALUE_NAME);
-
-	RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegDeviceClass, 0, KEY_READ, &hkResult); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}
-	RegQueryInfoKey(
-		hkResult,				// key handle
-		achClass,               // buffer for class name 
-		&cchClassName,          // size of class string 
-		NULL,                   // reserved 
-		&cSubKeys,              // number of subkeys 
-		&cbMaxSubKey,           // longest subkey size 
-		&cchMaxClass,           // longest class string 
-		&cValues,               // number of values for this key 
-		&cchMaxValue,           // longest value name 
-		&cbMaxValueData,        // longest value data 
-		&cbSecurityDescriptor,  // security descriptor 
-		&ftLastWriteTime		// last write time
-		);
-	int ret(0);
-	for (u_int i = 0; i < cSubKeys, !flagExit; i++)
+	size_t requiredLength(0);
+	if (!GetDefaultPrinterPath(nullptr, &requiredLength))
 	{
-		cbName = REG_MAX_KEY_LENGTH;
-		RegEnumKeyEx(hkResult, i, achKey, &cbName, NULL, NULL, NULL, &ftLastWriteTime);
-
-		wcscpy_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, szRegDeviceClass);
-		wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, _T("\\"));
-		wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, achKey);
-		wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, _T("\\#"));
-		wcscpy_s(szRegSymbolicLink, REG_MAX_VALUE_NAME, szRegDeviceParameters);
-		wcscpy_s(szRegControl, REG_MAX_VALUE_NAME, szRegDeviceParameters);
-		wcscat_s(szRegControl, REG_MAX_VALUE_NAME, _T("\\Control"));
-		wcscat_s(szRegDeviceParameters, REG_MAX_VALUE_NAME, _T("\\Device Parameters"));
-
-		RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegDeviceParameters, 0, KEY_READ, &hkDeviceParameters); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
-
-		PortNumber = 0;
-		RegGetValue(HKEY_LOCAL_MACHINE, szRegDeviceParameters, _T("Base Name"), RRF_RT_ANY, NULL, NULL, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
-		vData = (VOID*)malloc(cbData);
-		RegGetValue(HKEY_LOCAL_MACHINE, szRegDeviceParameters, _T("Base Name"), RRF_RT_ANY, NULL, vData, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
-		memcpy(szBaseName, vData, cbData);
-		free(vData);
-		PortNumber = 0;
-		RegGetValue(HKEY_LOCAL_MACHINE, szRegDeviceParameters, _T("Port Number"), RRF_RT_ANY, NULL, &PortNumber, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Device Parameters
-
-		wsprintf(szPort, _T("%s%03d"), szBaseName, PortNumber);
-
-		//if(PortNumber > 0 	// Нашли просто какой-то порт, т.к. агент заббикса запускается не от локального пользователя и у него другой принтер по умолчанию (((
-		//	&& ERROR_SUCCESS == RegOpenKeyEx(HKEY_LOCAL_MACHINE, szRegControl, 0, KEY_READ, &hkControl)) // Проверяем, что есть раздел DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#\\Control
-		
-		// Поиск порта подходит, если запускаемся от локального пользователя. Если от админа или system - надо проверять значение \\#\Control\Linked == 1
-		if (0 == wcscmp(pPrinter->pPortName, szPort)) // Найденный порт совпал с портом принтера по умолчанию, значит нашли то что надо
-		{
-			RegGetValue(HKEY_LOCAL_MACHINE, szRegSymbolicLink, _T("SymbolicLink"), RRF_RT_ANY, NULL, NULL, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#
-			vData = (VOID*)malloc(cbData);
-			RegGetValue(HKEY_LOCAL_MACHINE, szRegSymbolicLink, _T("SymbolicLink"), RRF_RT_ANY, NULL, vData, &cbData); // DeviceClasses\\{28d78fad-5a12-11d1-ae5b-0000f803a8c2}\\$achKey$\\#
-			memcpy(szInterface, vData, cbData);
-			free(vData);
-			flagExit = TRUE;
-			CharToOem(szPort, szPortA);
-			LogFile(szPortA);
-		}
-		RegCloseKey(hkDeviceParameters);
+		LogFile("Не удалось узнать путь принтера");
+		ErrorHandler();
 	}
-	RegCloseKey(hkResult);
+	wchar_t *szInterfaceNew = new wchar_t[requiredLength];
+	GetDefaultPrinterPath(szInterfaceNew, &requiredLength);
 
-	char *pDst = new char[wcslen(szInterface) + 1];
-	CharToOem(szInterface, pDst);
+	char *pDst = new char[requiredLength];
+	CharToOem(szInterfaceNew, pDst);
 	LogFile(pDst);
 	delete pDst;
 
@@ -323,7 +455,7 @@ void GetTonerLeft()
 
 	//wcout << szInterface << endl;
 
-	hPort = CreateFile(szInterface, FILE_READ_DATA | FILE_WRITE_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	hPort = CreateFile(szInterfaceNew, FILE_READ_DATA | FILE_WRITE_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (INVALID_HANDLE_VALUE == hPort) ErrorHandler();
 
 	//Init();
@@ -388,6 +520,7 @@ void GetTonerLeft()
 		//wcout << BytesRead << " " << CountA5 << endl;
 	}
 
+	// Отправить принтеру "ReadBreak", тоже непонятно зачем
 	ReadBreak();
 
 	// Записываем все муть, пришедшую с принтера, в файл log\answer.bin для последующего анализа
@@ -524,7 +657,7 @@ void GetTonerLeft()
 	if (!GetData(CmdPageCount)) ErrorHandler();
 
 	//system("PAUSE");
-	free(pPrinter);
+	delete szInterfaceNew;
 	CloseHandle(hPort);
 
 	LogFile("Стоп GetTonerLeft()");

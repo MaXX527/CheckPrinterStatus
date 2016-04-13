@@ -13,10 +13,10 @@
 
 #define VERSION_MAJOR               0
 #define VERSION_MINOR               1
-#define VERSION_REVISION            6
+#define VERSION_REVISION            7
 #define VERSION_BUILD               0
 
-#define VER_FILE_DESCRIPTION_STR    "Получение данных от МФУ Lexmark MX310dn"
+#define VER_FILE_DESCRIPTION_STR    "Изнасилование МФУ Lexmark MX310dn"
 #define VER_FILE_VERSION            VERSION_MAJOR, VERSION_MINOR, VERSION_REVISION, VERSION_BUILD
 #define VER_FILE_VERSION_STR        STRINGIZE(VERSION_MAJOR)        \
                                     "." STRINGIZE(VERSION_MINOR)    \

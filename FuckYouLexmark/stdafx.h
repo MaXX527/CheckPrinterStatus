@@ -36,9 +36,9 @@ struct PrinterInfo
 #define REG_MAX_VALUE_NAME 16383
 #define TIMEOUT 30		// ќжидать ответ принтера 30с
 
-//#include <cfgmgr32.h>
-//#include <setupapi.h>
+#include <cfgmgr32.h>
+#include <setupapi.h>
 //#include <devguid.h>
 
 //#pragma comment(lib, "Cfgmgr32.lib")
-//#pragma comment(lib, "Setupapi.lib")
+#pragma comment(lib, "Setupapi.lib")
