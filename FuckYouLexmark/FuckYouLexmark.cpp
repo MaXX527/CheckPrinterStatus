@@ -35,6 +35,8 @@ void LogFile(const wchar_t *msg)
 	wcsftime(buffer, 80, _T("%Y-%m-%d %H:%M:%S: "), &timeinfo);
 
 	wofstream logfile(_T("C:\\Zabbix\\log\\fyl.log"), ios::out | ios::app);
+	//locale rus("rus_rus.866");
+	logfile.imbue(locale("rus_rus.1251"));
 	logfile << buffer << msg << endl;
 	logfile.close();
 }
@@ -72,10 +74,11 @@ bool GetDefaultPrinterPath(wchar_t *path /* Out путь принтера */, size_t *l /* O
 	ZeroMemory(&po, sizeof PRINTER_OPTIONS);
 	po.cbSize = sizeof PRINTER_OPTIONS;
 	po.dwFlags = PRINTER_OPTION_NO_CACHE;
-	PRINTER_DEFAULTS PrinterDefaults = { NULL, NULL, PRINTER_ALL_ACCESS };
+	//PRINTER_DEFAULTS PrinterDefaults = { NULL, NULL, PRINTER_ALL_ACCESS };
 
 	DWORD cbNeeded(0);
-	OpenPrinter2(szDefaultPrinter, &hPrinter, &PrinterDefaults, &po);
+	//OpenPrinter2(szDefaultPrinter, &hPrinter, &PrinterDefaults, &po);
+	OpenPrinter2(szDefaultPrinter, &hPrinter, NULL, &po);
 
 	// Узнать экземпляр принтера, что-то типа USBPRINT\LEXMARKLEXMARK_MX310_SERIES\8&23B21019&0&USB003
 	// Можно подсмотреть в HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Print\Printers\Lexmark MX310 Series XL\PnPData\DeviceInstanceId
@@ -84,7 +87,7 @@ bool GetDefaultPrinterPath(wchar_t *path /* Out путь принтера */, size_t *l /* O
 	wchar_t *szDeviceInstanceId = new wchar_t[cbNeeded];
 	GetPrinterDataEx(hPrinter, _T("PnPData"), _T("DeviceInstanceId"), NULL, (LPBYTE)szDeviceInstanceId, nSize, &cbNeeded);
 	//wcout << _T("PnPData->DeviceInstanceId = ") << szDeviceInstanceId << endl;
-	if(path != nullptr)
+	if (path != nullptr)
 		LogFile(szDeviceInstanceId);
 	ClosePrinter(hPrinter);
 
@@ -328,6 +331,8 @@ void ReadBreak()
 	if (!WriteFile(hPort, (LPCVOID)b1, sizeof b1, &BytesWritten, NULL)) ErrorHandler();
 
 	ReadFile(hPort, answer, BUFSIZ, &BytesWritten, NULL);
+
+	LogFile(_T("End ReadBreak()"));
 }
 
 // С таких байт начинается обмен сообщениями, на всякий случай тоже их отправим
@@ -343,6 +348,8 @@ void Init()
 	if (!WriteFile(hPort, (LPCVOID)b2, sizeof b2, &BytesWritten, NULL)) ErrorHandler();
 
 	ReadFile(hPort, answer, BUFSIZ, &BytesWritten, NULL);
+
+	LogFile(_T("End Init()"));
 }
 
 // Если не удалось получить ответ за TIMEOUT секунд, убиться нафиг
@@ -480,10 +487,10 @@ void GetTonerLeft()
 	hPort = CreateFile(szInterfaceNew, FILE_READ_DATA | FILE_WRITE_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (INVALID_HANDLE_VALUE == hPort) ErrorHandler();
 
-	//Init();
+	// Вроде бы это первое сообщение, которое посылается принтеру
+	Init();
 
 	// Получение остатка тонера
-
 	DWORD BytesWritten(0);
 	DWORD BytesRead(0);
 
@@ -688,8 +695,9 @@ void GetTonerLeft()
 
 int main()
 {
-	std::locale rus("rus_rus.866");
-	std::wcout.imbue(rus);
+	locale rus("rus_rus.866");
+	cout.imbue(rus);
+	wcout.imbue(rus);
 
 	LogFile("================================================================================");
 	LogFile("Старт");
