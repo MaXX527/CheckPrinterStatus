@@ -15,7 +15,7 @@
 // TODO: Установите здесь ссылки на дополнительные заголовки, требующиеся для программы
 
 #include <iostream>
-//#include <iomanip>
+#include <iomanip>
 #include <Windows.h>
 #include <thread>
 #include <fstream>

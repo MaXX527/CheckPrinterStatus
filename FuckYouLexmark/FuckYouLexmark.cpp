@@ -323,6 +323,7 @@ void ErrorHandler()
 // После каждого обмена передается ReadBreak, принтер ответчает то же самое
 void ReadBreak()
 {
+	//return;
 	DWORD BytesWritten;
 	const byte b1[] = { 0xa5, 0x00, 0x0c, 0x50, 0x03, 0x04, 0x52, 0x65, 0x61, 0x64, 0x42, 0x72, 0x65, 0x61, 0x6b };
 	
@@ -338,16 +339,17 @@ void ReadBreak()
 // С таких байт начинается обмен сообщениями, на всякий случай тоже их отправим
 void Init()
 {
-	DWORD BytesWritten;
+	//return;
+	DWORD BytesWritten(0);
 	const byte b1[] = { 0xA5, 0x00, 0x10, 0x80, 0xA4, 0x5B, 0xA4, 0x5B, 0x10, 0xEF, 0xA4, 0x5B, 0x11, 0xEE, 0x00, 0xFF, 0x13, 0xEC, 0x2E };
 	const byte b2[] = { 0xA5, 0x00, 0x07, 0x50, 0xE0, 0xD9, 0x00, 0x0E, 0x0E, 0x04 };
-	byte answer[BUFSIZ];
+	byte answer[5] = { 0 };
 
 	if (!WriteFile(hPort, (LPCVOID)b1, sizeof b1, &BytesWritten, NULL)) ErrorHandler();
-
 	if (!WriteFile(hPort, (LPCVOID)b2, sizeof b2, &BytesWritten, NULL)) ErrorHandler();
 
-	ReadFile(hPort, answer, BUFSIZ, &BytesWritten, NULL);
+	BytesWritten = 0;
+	ReadFile(hPort, (LPVOID)answer, 5, &BytesWritten, NULL);
 
 	LogFile(_T("End Init()"));
 }
@@ -424,6 +426,10 @@ bool GetData(const char* pCmd)
 		}
 
 		//if (0x0a == (unsigned short)readBuf[bytesRead - 2] && 0x0c == (unsigned short)readBuf[bytesRead - 1]) break; // Конец сообщения
+		ofstream getdata("C:\\Zabbix\\log\\getdata.txt", ios::out | ios::trunc);
+		for (u_int j = 0; j < bytesRead; j++)
+			getdata << "0x" << setfill('0') << setw(2) << hex << (u_int)readBuf[j] << " (" << readBuf[j] << ") ";
+		getdata.close();
 		ZeroMemory(&readBuf, BUFSIZ);
 	}
 	LogFile("GetData()");
@@ -489,6 +495,7 @@ void GetTonerLeft()
 
 	// Вроде бы это первое сообщение, которое посылается принтеру
 	Init();
+	ReadBreak();
 
 	// Получение остатка тонера
 	DWORD BytesWritten(0);
@@ -681,9 +688,11 @@ void GetTonerLeft()
 	const char *CmdPageCount = "\x1B%-12345X@PJL\r\n@PJL INFO PAGECOUNT\r\n\x1B%-12345X\r\n";
 	const char *CmdStatus = "\x1B%-12345X@PJL\r\n@PJL INFO STATUS\r\n\x1B%-12345X\r\n";
 
-	if (!GetData(CmdID)) ErrorHandler();	// Запрос ID чтобы разбудить принтер, если он спит
-	Sleep(2000);							// Пауза чтобы принтер успел проснуться
+	//if (!GetData(CmdID)) ErrorHandler();	// Запрос ID чтобы разбудить принтер, если он спит
+	//ReadBreak();
+	//Sleep(2000);							// Пауза чтобы принтер успел проснуться
 	if (!GetData(CmdPageCount)) ErrorHandler();
+	//ReadBreak();
 
 	//system("PAUSE");
 	delete szInterfaceNew;

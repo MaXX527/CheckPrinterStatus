@@ -238,6 +238,34 @@ Spooling PRINTER_STATUS_PRINTING
 //	delete szDefaultPrinter;
 }
 
+void TestDC()
+{
+	DWORD pcchBuffer;
+	GetDefaultPrinter(nullptr, &pcchBuffer);
+	wchar_t *szDefaultPrinter = new wchar_t[pcchBuffer];
+	GetDefaultPrinter(szDefaultPrinter, &pcchBuffer);
+
+	HANDLE hPrinter;
+	OpenPrinter(szDefaultPrinter, &hPrinter, nullptr);
+
+	PRINTER_INFO_2 *pPrinter;
+	DWORD cbNeeded(0);
+	GetPrinterW(hPrinter, 2, nullptr, 0, &cbNeeded);
+	pPrinter = (PRINTER_INFO_2*)malloc(cbNeeded);
+	GetPrinter(hPrinter, 2, (LPBYTE)pPrinter, cbNeeded, &cbNeeded);
+	HDC printerDC = CreateDC(_T("WINSPOOL"), pPrinter->pPrinterName, nullptr, nullptr);
+
+	u_long Query = PASSTHROUGH;
+	wcout << printerDC << endl;
+	int escRet = ExtEscape(printerDC, QUERYESCSUPPORT, sizeof u_long, (LPCSTR)&Query, 0, nullptr);
+	wcout << _T("escRet = ") << escRet << endl;
+
+	delete szDefaultPrinter;
+	free(pPrinter);
+
+	return;
+}
+
 int main(int argc, char *argv[])
 {
 	std::locale rus("rus_rus.866");
@@ -250,7 +278,10 @@ int main(int argc, char *argv[])
 	args["pc"] = 2;
 	args["status"] = 3;*/
 
-	GetStructure6();
+	//GetStructure6();
+
+	TestDC();
+
 	system("PAUSE");
 	return 0;
 
