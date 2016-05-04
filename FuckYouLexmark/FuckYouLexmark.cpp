@@ -660,6 +660,13 @@ void GetTonerLeft()
 		LogFile("Файл left.txt записан");
 		//system("PAUSE");
 		//exit(EXIT_SUCCESS);
+
+		ofstream answertxt("C:\\Zabbix\\log\\answer.txt", ios::out | ios::trunc);
+		answertxt << "mfusn\t" << Pi.Sn << endl << "mfufw\t" << Pi.Fw << endl
+			<< "carsn\t" << Pi.cSn << endl << "carres\t" << Pi.cCapacity << endl << "carleft\t" << Pi.cPercent << endl
+			<< "iusn\t" << Pi.iuSn << endl << "iures\t" << Pi.iuResource << endl << "iuleft\t" << Pi.iuPercent;
+		answertxt.close();
+		LogFile("Файл answer.txt записан");
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////////////////
@@ -674,13 +681,6 @@ void GetTonerLeft()
 	//memcpy(Pi.iuSn, AllAnswer + 0x401, 0x0c);
 	//Pi.iuResource = ((u_int)AllAnswer[0x411] << 8 * 3) + ((u_int)AllAnswer[0x412] << 8 * 2) + ((u_int)AllAnswer[0x413] << 8 * 1) + ((u_int)AllAnswer[0x414]);
 	//Pi.iuPercent  = ((u_int)AllAnswer[0x43a] << 8 * 3) + ((u_int)AllAnswer[0x43b] << 8 * 2) + ((u_int)AllAnswer[0x43c] << 8 * 1) + ((u_int)AllAnswer[0x43d]);
-
-	ofstream answertxt("C:\\Zabbix\\log\\answer.txt", ios::out | ios::trunc);
-	answertxt << "mfusn\t" << Pi.Sn   << endl << "mfufw\t"  << Pi.Fw         << endl
-		      << "carsn\t" << Pi.cSn  << endl << "carres\t" << Pi.cCapacity  << endl << "carleft\t" << Pi.cPercent << endl
-		      << "iusn\t"  << Pi.iuSn << endl << "iures\t"  << Pi.iuResource << endl << "iuleft\t"  << Pi.iuPercent;
-	answertxt.close();
-	LogFile("Файл answer.txt записан");
 	///////////////////////////////////////////////////////////////////////////////////////////////
 
 	// Получение счетчика страниц PAGECOUNT

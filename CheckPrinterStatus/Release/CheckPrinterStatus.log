@@ -1,0 +1,9 @@
+﻿  CheckPrinterStatus.cpp
+CheckPrinterStatus.cpp(117): warning C4018: <: несоответствие типов со знаком и без знака
+CheckPrinterStatus.cpp(158): warning C4018: <: несоответствие типов со знаком и без знака
+  Создание кода
+  Создание кода завершено
+  7 of 948 functions ( 0.7%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    4 functions had inline decision re-evaluated but remain unchanged
+  CheckPrinterStatus.vcxproj -> C:\Users\baganms\Documents\Visual Studio 2015\Projects\CheckPrinterStatus\Release\CheckPrinterStatus.exe

@@ -1,0 +1,15 @@
+﻿  stdafx.cpp
+  DefaultPrinter.cpp
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\checkprinterstatus\defaultprinter.cpp(16): warning C4244: инициализация: преобразование "unsigned __int64" в "unsigned int", возможна потеря данных
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\checkprinterstatus\defaultprinter.cpp(17): warning C4244: аргумент: преобразование "unsigned __int64" в "rsize_t", возможна потеря данных
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\checkprinterstatus\defaultprinter.cpp(20): warning C4244: инициализация: преобразование "unsigned __int64" в "unsigned int", возможна потеря данных
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\checkprinterstatus\defaultprinter.cpp(21): warning C4244: аргумент: преобразование "unsigned __int64" в "rsize_t", возможна потеря данных
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\checkprinterstatus\defaultprinter.cpp(123): warning C4244: инициализация: преобразование "unsigned __int64" в "unsigned int", возможна потеря данных
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\checkprinterstatus\defaultprinter.cpp(124): warning C4244: аргумент: преобразование "unsigned __int64" в "rsize_t", возможна потеря данных
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\checkprinterstatus\defaultprinter.cpp(127): warning C4244: инициализация: преобразование "unsigned __int64" в "unsigned int", возможна потеря данных
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\checkprinterstatus\defaultprinter.cpp(128): warning C4244: аргумент: преобразование "unsigned __int64" в "rsize_t", возможна потеря данных
+  CheckPrinterStatus.cpp
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\checkprinterstatus\checkprinterstatus.cpp(117): warning C4018: <: несоответствие типов со знаком и без знака
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\checkprinterstatus\checkprinterstatus.cpp(158): warning C4018: <: несоответствие типов со знаком и без знака
+  Создание кода...
+  CheckPrinterStatus.vcxproj -> C:\Users\baganms\Documents\Visual Studio 2015\Projects\CheckPrinterStatus\Debug\CheckPrinterStatus.exe
