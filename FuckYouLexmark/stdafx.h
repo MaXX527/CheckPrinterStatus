@@ -42,3 +42,5 @@ struct PrinterInfo
 
 //#pragma comment(lib, "Cfgmgr32.lib")
 #pragma comment(lib, "Setupapi.lib")
+
+#include <usbprint.h>

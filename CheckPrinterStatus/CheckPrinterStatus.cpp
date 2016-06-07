@@ -266,6 +266,58 @@ void TestDC()
 	return;
 }
 
+void TestDeviceIoControl()
+{
+	HANDLE handle = CreateFile(_T("\\\\?\\USB#VID_043D&PID_0227&MI_01#7&1f0b0e8&1&0001#{28d78fad-5a12-11d1-ae5b-0000f803a8c2}"),
+		FILE_READ_DATA | FILE_WRITE_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
+		NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	
+	BYTE lpOutBuffer[BUFSIZ];
+	ZeroMemory(lpOutBuffer, BUFSIZ);
+	DWORD BytesReturned = 0;
+
+	wcout << lpOutBuffer[0] << endl;
+
+	/*BOOL bRet = DeviceIoControl(
+		handle,
+		IOCTL_USBPRINT_GET_LPT_STATUS, // dwIoControlCode 
+		NULL, // lpInBuffer
+		0, // nInBufferSize
+		(PUCHAR)lpOutBuffer,
+		BUFSIZ,
+		(LPDWORD)&BytesReturned,
+		(LPOVERLAPPED)NULL
+	);*/
+
+	BOOL bRet = DeviceIoControl(
+		handle,
+		IOCTL_USBPRINT_SOFT_RESET, // dwIoControlCode 
+		NULL, // lpInBuffer
+		0, // nInBufferSize
+		NULL,
+		0,
+		(LPDWORD)&BytesReturned,
+		(LPOVERLAPPED)NULL
+	);
+
+	if (bRet)
+	{
+		/*wcout << _T("Вернулось ") << BytesReturned << _T(" байт") << endl;
+		for(size_t i = 0; i < 24; i++)
+			wcout << lpOutBuffer[i] << endl;*/
+		wcout << _T("Вернулось ") << BytesReturned << _T(" байт") << endl;
+		wcout << _T("НЕ все пропало ") << hex << GetLastError() << dec << endl;
+	}
+	else
+	{
+		wcout << _T("Все пропало ") << hex << GetLastError() << dec << endl;
+	}
+
+	CloseHandle(handle);
+
+	return;
+}
+
 int main(int argc, char *argv[])
 {
 	std::locale rus("rus_rus.866");
@@ -280,7 +332,11 @@ int main(int argc, char *argv[])
 
 	//GetStructure6();
 
-	TestDC();
+	//TestDC();
+
+	system("PAUSE");
+
+	TestDeviceIoControl();
 
 	system("PAUSE");
 	return 0;

@@ -1,3 +1,4 @@
 ﻿  stdafx.cpp
   FuckYouLexmark.cpp
+c:\users\baganms\documents\visual studio 2015\projects\checkprinterstatus\fuckyoulexmark\fuckyoulexmark.cpp(364): warning C4800: BOOL: принудительно задано логическое значение "true" или "false" (предупреждение о производительности)
   FuckYouLexmark.vcxproj -> C:\Users\baganms\Documents\Visual Studio 2015\Projects\CheckPrinterStatus\x64\Debug\FuckYouLexmark.exe

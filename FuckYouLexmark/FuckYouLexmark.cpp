@@ -354,6 +354,16 @@ void Init()
 	LogFile(_T("End Init()"));
 }
 
+// Послать USB-интерфейсу IOCTL_USBPRINT_SOFT_RESET, вдруг станет лучше работать :(
+bool ResetDevice()
+{
+	BYTE lpOutBuffer[BUFSIZ];
+	ZeroMemory(lpOutBuffer, BUFSIZ);
+	DWORD BytesReturned = 0;
+
+	return DeviceIoControl(hPort, IOCTL_USBPRINT_SOFT_RESET, NULL, 0, NULL, 0, (LPDWORD)&BytesReturned, (LPOVERLAPPED)NULL);
+}
+
 // Если не удалось получить ответ за TIMEOUT секунд, убиться нафиг
 void Timeout()
 {
@@ -441,6 +451,15 @@ bool GetData(const char* pCmd)
 		pc.close();
 		LogFile("Файл pc.txt записан");
 	}
+
+	/*if ( (readBuf[0] == 0xff) && (readBuf[1] == 0xff) && (readBuf[2] == 0xff) )
+	{
+		Sleep(500);
+		LogFile("GetData() return 0xffffff, try again");
+		Init();
+		GetData(pCmd);
+	}*/
+
 	return true;
 }
 
@@ -493,6 +512,7 @@ void GetTonerLeft()
 	hPort = CreateFile(szInterfaceNew, FILE_READ_DATA | FILE_WRITE_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (INVALID_HANDLE_VALUE == hPort) ErrorHandler();
 
+	ResetDevice();
 	// Вроде бы это первое сообщение, которое посылается принтеру
 	Init();
 	ReadBreak();
@@ -691,6 +711,7 @@ void GetTonerLeft()
 	//if (!GetData(CmdID)) ErrorHandler();	// Запрос ID чтобы разбудить принтер, если он спит
 	//ReadBreak();
 	//Sleep(2000);							// Пауза чтобы принтер успел проснуться
+	ResetDevice();
 	if (!GetData(CmdPageCount)) ErrorHandler();
 	//ReadBreak();
 

@@ -40,4 +40,6 @@
 #define REG_MAX_KEY_LENGTH 255
 #define REG_MAX_VALUE_NAME 16383
 
+#include "usbprint.h"
+
 // TODO: Установите здесь ссылки на дополнительные заголовки, требующиеся для программы

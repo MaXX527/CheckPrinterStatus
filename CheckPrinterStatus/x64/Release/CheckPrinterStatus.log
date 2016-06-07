@@ -1,9 +1,9 @@
-﻿  stdafx.cpp
-  CheckPrinterStatus.cpp
+﻿  CheckPrinterStatus.cpp
 CheckPrinterStatus.cpp(117): warning C4018: <: несоответствие типов со знаком и без знака
 CheckPrinterStatus.cpp(161): warning C4018: <: несоответствие типов со знаком и без знака
-  DefaultPrinter.cpp
   Создание кода
-  All 956 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  4 of 958 functions ( 0.4%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    1 functions had inline decision re-evaluated but remain unchanged
   Создание кода завершено
   CheckPrinterStatus.vcxproj -> C:\Users\baganms\Documents\Visual Studio 2015\Projects\CheckPrinterStatus\x64\Release\CheckPrinterStatus.exe
